@@ -164,11 +164,15 @@ All 47 original data files (586 KB total) are preloaded into `/assets`. The
 preload list is **explicit, not the repository root** — a bare
 `--preload-file .@/assets` would sweep in `build/`, `dist/`, and `.git` and
 produce a multi-gigabyte `.data`. A CMake-generated staging directory collects
-exactly the manifest's files plus `config/original-assets.sha256`, and that
-directory is what gets preloaded. Under Emscripten the asset-root search is
-replaced by a fixed `/assets`, skipping the parent-directory walk entirely. The
-manifest check (`config/original-assets.sha256`) still runs, now on the portable
-SHA-256.
+exactly the files the game opens at runtime, and that directory is what gets
+preloaded. Under Emscripten the asset-root search is replaced by a fixed
+`/assets`, skipping the parent-directory walk entirely. The manifest check does
+**not** run in the web build: assets baked in at build time cannot drift, and
+the three non-runtime manifest entries (`BUMPY.EXE`, `BUMP-Y.EXE`,
+`OLD-GAMES.NFO`, ~400 KB) are not shipped at all. The source tree the staging
+directory copies from is verified on the desktop side by
+`tests/cpp/asset_manifest_test.cpp`, which is a stronger guarantee at zero
+runtime cost.
 
 `bumpy_port.cfg` persistence moves to `localStorage`: `load_port_config` and
 `save_port_config` (`src/core/port_config.cpp`) get an `__EMSCRIPTEN__` branch

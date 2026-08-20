@@ -78,13 +78,19 @@ target_include_directories(bumpy_core PRIVATE ${ymfm_SOURCE_DIR}/src)
 
 add_library(bumpy_platform_sdl3
   src/platform_sdl3/sdl_app.cpp
-  src/platform_sdl3/sdl_audio.cpp
-  src/platform_gl3/gl33.cpp
-  src/platform_gl3/gl_util.cpp
-  src/platform_gl3/gl_presenter.cpp
-  src/platform_gl3/scene_renderer.cpp)
+  src/platform_sdl3/sdl_audio.cpp)
 target_include_directories(bumpy_platform_sdl3 PUBLIC src)
-target_link_libraries(bumpy_platform_sdl3 PUBLIC bumpy_core SDL3::SDL3 opengl32)
+target_link_libraries(bumpy_platform_sdl3 PUBLIC bumpy_core SDL3::SDL3)
+# Stage 1 of the web port is flat-only: no GL is compiled for Emscripten. Stage 2
+# (WebGL2 + GLES 3.00 shaders) reopens this branch.
+if(NOT EMSCRIPTEN)
+  target_sources(bumpy_platform_sdl3 PRIVATE
+    src/platform_gl3/gl33.cpp
+    src/platform_gl3/gl_util.cpp
+    src/platform_gl3/gl_presenter.cpp
+    src/platform_gl3/scene_renderer.cpp)
+  target_link_libraries(bumpy_platform_sdl3 PUBLIC opengl32)
+endif()
 
 add_executable(bumpy_port src/app/main.cpp)
 target_link_libraries(bumpy_port PRIVATE bumpy_platform_sdl3)
@@ -100,15 +106,21 @@ endif()
 if(MSVC)
   target_link_options(bumpy_port PRIVATE $<$<CONFIG:Release>:/SUBSYSTEM:WINDOWS>)
 endif()
-add_custom_command(TARGET bumpy_port POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    $<TARGET_FILE:SDL3::SDL3>
-    $<TARGET_FILE_DIR:bumpy_port>)
-add_custom_command(TARGET bumpy_port POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/shaders3d
-    $<TARGET_FILE_DIR:bumpy_port>/shaders3d)
+# Neither copy means anything for a wasm build: there is no SDL3 shared library to
+# sit beside the executable, and stage 1 ships no shaders.
+if(NOT EMSCRIPTEN)
+  add_custom_command(TARGET bumpy_port POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:SDL3::SDL3>
+      $<TARGET_FILE_DIR:bumpy_port>)
+  add_custom_command(TARGET bumpy_port POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+      ${CMAKE_SOURCE_DIR}/shaders3d
+      $<TARGET_FILE_DIR:bumpy_port>/shaders3d)
+endif()
 
+# The offline tools and the test suite run natively, never in the browser.
+if(NOT EMSCRIPTEN)
 add_executable(audio_render tools/audio_render/main.cpp)
 target_link_libraries(audio_render PRIVATE bumpy_core)
 
@@ -162,3 +174,46 @@ add_executable(bumpy_tests
 target_link_libraries(bumpy_tests PRIVATE bumpy_core Catch2::Catch2WithMain)
 add_test(NAME bumpy_tests COMMAND bumpy_tests)
 set_tests_properties(bumpy_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+endif()  # NOT EMSCRIPTEN (audio_render + tests)
+
+if(EMSCRIPTEN)
+  # Preload only what the game opens at runtime: 47 files, 586 KB. The manifest also
+  # lists BUMPY.EXE, BUMP-Y.EXE and OLD-GAMES.NFO (~400 KB of DOS binaries and docs)
+  # that nothing loads -- shipping them would nearly double every player's download.
+  set(BUMPY_WEB_ASSETS
+    BUMPRESE.VEC BUMPY.BNK BUMPY.MID BUMSPJEU.BIN DDFNT2.CAR DESSFIN.VEC
+    FLECHE.BIN MASKBUMP.VEC QUELDISK SCORE.VEC TITRE.VEC)
+  foreach(n RANGE 1 9)
+    list(APPEND BUMPY_WEB_ASSETS D${n}.BUM D${n}.DEC D${n}.PAV MONDE${n}.VEC)
+  endforeach()
+
+  set(BUMPY_WEB_STAGE ${CMAKE_CURRENT_BINARY_DIR}/web-assets)
+  set(BUMPY_WEB_STAGED "")
+  foreach(asset IN LISTS BUMPY_WEB_ASSETS)
+    add_custom_command(
+      OUTPUT ${BUMPY_WEB_STAGE}/${asset}
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${CMAKE_SOURCE_DIR}/${asset} ${BUMPY_WEB_STAGE}/${asset}
+      DEPENDS ${CMAKE_SOURCE_DIR}/${asset}
+      COMMENT "staging web asset ${asset}")
+    list(APPEND BUMPY_WEB_STAGED ${BUMPY_WEB_STAGE}/${asset})
+  endforeach()
+  add_custom_target(bumpy_web_assets DEPENDS ${BUMPY_WEB_STAGED})
+  add_dependencies(bumpy_port bumpy_web_assets)
+
+  set_target_properties(bumpy_port PROPERTIES OUTPUT_NAME bumpy SUFFIX ".html")
+  target_link_options(bumpy_port PRIVATE
+    # The run loop still blocks; Asyncify is what turns emscripten_sleep into a real
+    # yield so the browser gets its thread back (see src/platform_sdl3/sdl_app.cpp).
+    -sASYNCIFY
+    -sALLOW_MEMORY_GROWTH=1
+    -sSTACK_SIZE=4194304
+    # main() is held back until the shell's click-to-play gate, so the audio device
+    # opens inside a user gesture.
+    -sINVOKE_RUN=0
+    -sEXPORTED_RUNTIME_METHODS=callMain
+    --preload-file ${BUMPY_WEB_STAGE}@/assets
+    --shell-file ${CMAKE_SOURCE_DIR}/src/web/shell.html)
+  set_property(TARGET bumpy_port APPEND PROPERTY LINK_DEPENDS
+    ${CMAKE_SOURCE_DIR}/src/web/shell.html)
+endif()

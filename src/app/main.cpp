@@ -26,9 +26,13 @@
 #include "resources/world_resources.h"
 #include "game/world_graphs.h"
 #include "game/world_map.h"
+// Stage 1 of the web port compiles no GL, so the offline GL dev tools below
+// (--present-parity, --render-3d) are excluded from the web build with them.
+#ifndef __EMSCRIPTEN__
 #include "platform_gl3/gl_presenter.h"
 #include "platform_gl3/gl_util.h"
 #include "platform_gl3/scene_renderer.h"
+#endif
 #include "video/board_renderer.h"
 #include "video/high_score_renderer.h"
 #include "video/hud.h"
@@ -56,6 +60,27 @@
 #include <vector>
 
 namespace {
+
+#ifdef __EMSCRIPTEN__
+
+// The web build's assets are baked into the .data image and mounted at /assets by
+// --preload-file, so there is nothing to search for and nothing that can drift.
+std::filesystem::path find_asset_root(std::string_view) {
+    return "/assets";
+}
+
+// The browser has no directory next to an executable; PortConfig persists to
+// localStorage instead (see src/core/port_config.cpp), so this path is never opened.
+std::filesystem::path config_file_path(std::string_view) {
+    return "/bumpy_port.cfg";
+}
+
+// Nothing to verify: the assets ship inside the build, so they cannot differ from
+// the manifest. The source tree they are staged from is verified on the desktop
+// side by tests/cpp/asset_manifest_test.cpp.
+void warn_if_assets_changed(const std::filesystem::path&) {}
+
+#else
 
 bool has_asset_manifest(const std::filesystem::path& root) {
     return std::filesystem::is_regular_file(root / "config/original-assets.sha256");
@@ -123,6 +148,8 @@ void warn_if_assets_changed(const std::filesystem::path& asset_root) {
         std::cerr << "warning: could not verify original assets: " << error.what() << '\n';
     }
 }
+
+#endif  // __EMSCRIPTEN__
 
 void write_u16(std::ostream& output, std::uint16_t value) {
     output.put(static_cast<char>(value & 0xffU));
@@ -292,6 +319,7 @@ bumpy::IndexedFramebuffer render_menu_frame(const std::filesystem::path& asset_r
     return frame;
 }
 
+#ifndef __EMSCRIPTEN__
 // CPU nearest-neighbour reference upscale: each frame pixel becomes a k x k block.
 std::vector<std::uint8_t> nearest_upscale_rgba(const bumpy::IndexedFramebuffer& frame, int k) {
     const auto src = frame.to_rgba();
@@ -365,6 +393,7 @@ int present_parity(const std::filesystem::path& asset_root) {
     SDL_Quit();
     return failures == 0 ? 0 : 1;
 }
+#endif  // !__EMSCRIPTEN__
 
 int render_title_to_bmp(const std::filesystem::path& asset_root, const std::filesystem::path& out_path,
                         int level_value) {
@@ -685,6 +714,7 @@ int render_sprite_to_rgba(const std::filesystem::path& asset_root, int level_num
     return 0;
 }
 
+#ifndef __EMSCRIPTEN__
 // RGBA (rows top-to-bottom) -> 24-bit BMP, for GL readback dumps.
 void write_24bit_bmp_rgba(const std::filesystem::path& path,
                           const std::vector<std::uint8_t>& rgba, int w, int h) {
@@ -782,6 +812,7 @@ int render_3d_to_bmp(const std::filesystem::path& asset_root, std::string_view e
     SDL_Quit();
     return rc;
 }
+#endif  // !__EMSCRIPTEN__
 
 // Drive the in-level LevelGame on a board for a number of frames with a held
 // direction, dumping <prefix>NN.bmp every few frames (board art + live entities +
@@ -1124,11 +1155,13 @@ int main(int argc, char* argv[]) {
             // --render-sprite <level> <frame> <out.rgba>: one BUMSPJEU frame -> raw RGBA.
             return render_sprite_to_rgba(asset_root, std::stoi(argv[2]), std::stoi(argv[3]), argv[4]);
         }
+#ifndef __EMSCRIPTEN__
         if (argc == 6 && std::string_view(argv[1]) == "--render-3d") {
             // --render-3d <level> <MONDE.VEC> <board> <out.bmp>: headless diorama dump.
             return render_3d_to_bmp(asset_root, argv[0], std::stoi(argv[2]), argv[3],
                                     static_cast<std::size_t>(std::stoi(argv[4])), argv[5]);
         }
+#endif
         if (argc == 9 && std::string_view(argv[1]) == "--render-pav") {
             // --render-pav <pav> <pal|DEBUG> <out.bmp> <layout> <w> <h> <hdr>
             return render_pav(argv[2], argv[3], argv[4], argv[5], std::stoi(argv[6]),
@@ -1144,9 +1177,11 @@ int main(int argc, char* argv[]) {
             const int preset_id = static_cast<int>(std::stol(argv[2], nullptr, 0));
             return dump_sfx_to_wav(preset_id, argv[3]);
         }
+#ifndef __EMSCRIPTEN__
         if (argc == 2 && std::string_view(argv[1]) == "--present-parity") {
             return present_parity(asset_root);
         }
+#endif
         // The tool branches above always parse raw argc/argv (unaffected by --render3d).
         // Everything below instead consults `args` -- argv[1..] with any "--render3d"
         // filtered out -- so that flag can be combined with --start-world or the default

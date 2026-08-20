@@ -1,0 +1,283 @@
+# Web port (Emscripten/WebAssembly), stage 1 — classic presentation — design
+
+Date: 2026-08-20
+Status: approved (pending spec review)
+
+## Overview
+
+Build the existing SDL3 port for the browser with Emscripten, so the game runs
+from a URL with no install. **Stage 1 ships the classic (flat, original-look)
+presentation only**, using the `SDL_Renderer` path that `SdlApp` already carries
+as its no-GL fallback (`src/platform_sdl3/sdl_app.cpp:110-149`). No shader is
+touched and no GL code is compiled in this stage.
+
+The 3D diorama (`Alt+3`) and the HD/xBRZ mode are **stage 2**, deferred to their
+own branch and spec. The `#ifdef` seams introduced here are exactly the points
+that stage 2 reopens.
+
+### Why this is not "just a recompile"
+
+Five things genuinely have to change; everything else does compile as-is:
+
+1. The main loop blocks (`while (running)` at `sdl_app.cpp:459`, with
+   `SDL_Delay` + a sub-millisecond spin at `:449-451`). A blocking loop freezes
+   the browser tab.
+2. `src/core/asset_manifest.cpp` uses `windows.h` + `bcrypt.h` for SHA-256. It
+   is the **only** OS dependency anywhere in `bumpy_core`.
+3. Asset-root discovery walks parent directories via `std::filesystem`
+   (`src/app/main.cpp:63+`) — meaningless in a virtual filesystem.
+4. `bumpy_port.cfg` is written next to the executable
+   (`src/app/main.cpp:108-110`) — no such place in a browser.
+5. Audio may not start before a user gesture, and the SDL3 audio callback
+   interacts badly with Asyncify (see "Audio" below).
+
+### Why stage 2 is small (recorded here so it is not re-litigated later)
+
+An audit of `src/platform_gl3/` found the port uses exactly **16 GL entry
+points**, all present in WebGL2/GLES 3.0, and only two texture formats
+(`GL_RGBA8`, `GL_R8`/`GL_RED`), both WebGL2-supported. There are no geometry or
+compute shaders, no buffer mapping, and no threads anywhere in the project
+(`std::thread` appears zero times). Stage 2 is therefore: request an ES context
+instead of GL 3.3 core, and port five shaders from `#version 330 core` to
+`#version 300 es` plus precision qualifiers.
+
+## Goals
+
+- The full classic game playable in a current desktop browser: splash, menu,
+  password entry, world map, all nine worlds, high scores, game over, outro.
+- Sound (OPL2 music + PC-speaker SFX) working.
+- The Tab settings overlay working, minus the options that do not apply.
+- **The desktop build and its test suite are unchanged in behaviour.** Every
+  edit to shared code is either `#ifdef`-guarded or covered by an existing test.
+- Assets baked into the build so the game runs from a plain static URL.
+
+## Non-goals
+
+- No 3D mode, no HD/xBRZ mode, no GL of any kind (stage 2).
+- No 16:10 aspect option in the web build (see "Display" — this is a decision,
+  not an omission).
+- No mobile/touch controls.
+- No changes to gameplay, timing sources, PRNG, the `App` state machine, or the
+  `--render-*` RE dump tooling.
+- No new persisted state. High scores stay session-only, as in the original and
+  as `src/core/port_config.h` documents.
+- No hosting/deployment work. The output is a static directory; where it gets
+  published is a separate decision.
+
+## Decisions taken by the user
+
+| Question | Decision |
+|---|---|
+| Asset delivery | **Baked into the build** (`--preload-file`), not user-supplied. |
+| Scope of this branch | **Classic only.** 3D/HD deferred to stage 2. |
+| Display aspect | **4:3 only.** The 16:10 option is removed from the web build. |
+| Main-loop strategy | **Asyncify**, not a `run()` refactor. |
+| Toolchain | Claude installs emsdk to `C:\dev\emsdk`. Done: **6.0.8**, binaries at `C:\dev\emsdk\upstream\emscripten\*.exe`. |
+
+On aspect, the user's standing constraint for the future: 4:3 is the base
+geometry. If widescreen is ever added to the web build, it must derive from 4:3
+(extending the view) exactly as the desktop port's widescreen-4:3 does — never
+by stretching a 16:10 image.
+
+## Architecture
+
+### Main loop — Asyncify
+
+`run()` is left structurally intact. Under `#ifdef __EMSCRIPTEN__`, only
+`wait_next_tick` (`sdl_app.cpp:441-455`) changes: `SDL_Delay(n)` becomes
+`emscripten_sleep(n)`, and the final busy-spin becomes a yield loop
+(`emscripten_sleep(0)`) instead of a pure spin. The `next_frame` deadline
+arithmetic, the resync-when-behind rule, and every caller stay exactly as they
+are, so the desktop pacing is untouched by construction.
+
+Rejected alternatives, with reasons, so they are not revisited:
+
+- **Refactor to `emscripten_set_main_loop`.** Would require hoisting ~40 locals
+  and several lambdas out of a ~380-line loop body that is the most
+  behaviourally-critical code in the port. High regression risk in the desktop
+  build for a size/speed win that does not matter at 320×200. It also does not
+  solve the frame-rate problem below.
+- **`-sPROXY_TO_PTHREAD`.** Zero code change, but needs SharedArrayBuffer and
+  therefore COOP/COEP response headers, which constrains every future hosting
+  choice.
+
+#### Open risk: frame pacing (must be measured, not assumed)
+
+The game ticks at 70.086 Hz (HARD), 35.043 Hz (EASY), or alternating (MEDIUM),
+derived from the original's retrace timing. Browsers clamp `setTimeout` and
+composite at display refresh (commonly 60 Hz). Two failure modes are possible:
+
+- Timer clamping stretches each period → the game runs slow.
+- One tick per composited frame → 60/70.086 ≈ 86 % speed on a 60 Hz display.
+
+The plan is to keep the existing `SDL_GetPerformanceCounter`-based deadline as
+the authority (it is wall-clock, not frame-counted, so it is not intrinsically
+tied to refresh rate) and then **measure**: time a fixed number of level ticks in
+the browser against the same measurement in the desktop build, and compare.
+
+**Acceptance gate: measured browser tick rate within 2 % of desktop.** If it is
+not met, the fallback is a `requestAnimationFrame`-driven yield with catch-up
+ticks (multiple game ticks per composited frame, presenting only the last).
+Drawing more than once per compositor frame is cheap here — the browser simply
+shows the latest — so catch-up costs almost nothing at this resolution.
+
+No claim that pacing is correct will be made before this measurement exists.
+
+### Portable SHA-256
+
+New `src/core/sha256.{h,cpp}` (self-contained, ~120 lines), test-driven against
+the standard FIPS-180-4 vectors in a new `tests/cpp/sha256_test.cpp`.
+`asset_manifest.cpp` switches to it **on all platforms**, and `bcrypt` is dropped
+from `target_link_libraries`. The existing `tests/cpp/asset_manifest_test.cpp`
+is the regression net proving the swap is behaviour-preserving.
+
+This is deliberately not `#ifdef`-ed: it leaves `bumpy_core` free of every OS
+dependency, which is a strict improvement for the desktop build too.
+
+### Platform layer
+
+`platform_gl3/*` is excluded from the Emscripten build. `SdlApp` gets
+`#if !defined(__EMSCRIPTEN__)` guards around the `gl_` member, its construction
+(`sdl_app.cpp:93-108`), its use in `present_frame` (`:425-436`), the `Alt+3`
+handler (`:502-506`), and the destructor's `gl_.reset()`. The web build then
+takes the existing `SDL_Renderer` fallback path with no further change.
+
+These guards are the stage-2 seam: stage 2 replaces "excluded" with "GLES 3.0
+context + ported shaders" at these same points.
+
+### Display
+
+`square_pixels` is forced `false` in the web build and the toggle is removed:
+
+- `SDL_SetRenderLogicalPresentation(renderer_, 320, 240, LETTERBOX)`, fixed.
+- The `Alt+A` handler (`sdl_app.cpp:496-501`) is compiled out.
+- The ASPECT row is removed from the settings overlay — `settings_overlay.cpp:73`
+  (`toggle_aspect`) and `settings_renderer.cpp:96` (the `"16.10"`/`"4.3"` row) —
+  and the remaining rows renumbered.
+
+`Alt+Enter` keeps working: `SDL_SetWindowFullscreen` maps to canvas fullscreen
+under Emscripten, and a keypress is a valid user gesture.
+
+### Assets and configuration
+
+All 47 original data files (586 KB total) are preloaded into `/assets`. The
+preload list is **explicit, not the repository root** — a bare
+`--preload-file .@/assets` would sweep in `build/`, `dist/`, and `.git` and
+produce a multi-gigabyte `.data`. A CMake-generated staging directory collects
+exactly the manifest's files plus `config/original-assets.sha256`, and that
+directory is what gets preloaded. Under Emscripten the asset-root search is
+replaced by a fixed `/assets`, skipping the parent-directory walk entirely. The
+manifest check (`config/original-assets.sha256`) still runs, now on the portable
+SHA-256.
+
+`bumpy_port.cfg` persistence moves to `localStorage`: `load_port_config` and
+`save_port_config` (`src/core/port_config.cpp`) get an `__EMSCRIPTEN__` branch
+backed by a small `EM_JS` get/set pair, keyed `bumpy_port_cfg`, storing the same
+`key=value` text the file format already uses. No IDBFS, no `syncfs`, no async
+filesystem initialisation — the payload is five booleans, of which the web build
+only meaningfully uses `music`, `sfx`, and `fullscreen`.
+
+### Audio
+
+`SdlAudio` (`src/platform_sdl3/sdl_audio.cpp`) currently uses SDL3's *callback*
+stream, driven by SDL's audio thread. Under Asyncify, a JS-initiated call into
+wasm while the main stack is unwound is a known hazard.
+
+The web build therefore uses **push mode**: `SDL_OpenAudioDeviceStream` with a
+null callback, plus a `pump()` that renders and pushes samples from the main
+loop, targeting a ~100 ms queued buffer. This sidesteps the reentrancy hazard and
+also absorbs the timer jitter that would otherwise cause underruns. Desktop keeps
+the callback path unchanged.
+
+Audio start is gated behind the shell's click-to-play screen, which satisfies the
+browser's user-gesture requirement before `SDL_Init(SDL_INIT_AUDIO)` runs.
+
+### HTML shell
+
+`src/web/shell.html`: black page, centred canvas, a loading indicator for the
+`.data` fetch, and a **CLICK TO PLAY** gate that both unlocks audio and gives the
+canvas keyboard focus. Arrow keys, space, and Tab are `preventDefault`-ed so the
+page does not scroll and Tab does not move focus off the canvas — Tab is the
+settings-overlay key.
+
+### Build
+
+`CMakeLists.txt` gains `if(EMSCRIPTEN)` branches rather than a second file:
+
+- SDL3 continues to come from `FetchContent` (SDL3 supports Emscripten
+  natively); no `opengl32`, no `bcrypt`.
+- `bumpy_platform_sdl3` drops the `platform_gl3/*` sources.
+- The `audio_render` tool and `bumpy_tests` targets are excluded (tests run
+  natively).
+- Link options: `-sASYNCIFY`, `-sALLOW_MEMORY_GROWTH`, `-sEXIT_RUNTIME=0`,
+  `--preload-file`, `--shell-file src/web/shell.html`, `-O2`.
+- Output lands in `dist/web/` as `bumpy.html` + `.js` + `.wasm` + `.data`.
+
+A `CMakePresets.json` preset (`web-release`) wraps the `emcmake` toolchain file
+so the build is one command.
+
+## Testing
+
+**Desktop regression (the primary safety net).** The native build and the full
+Catch2 suite must stay green after the SHA-256 swap, the `#ifdef` guards, and the
+settings-overlay row removal. `sha256_test.cpp` is new and TDD; `asset_manifest_test.cpp`,
+`port_config_test.cpp`, and `settings_overlay_test.cpp`/`settings_renderer_test.cpp`
+cover the changed shared code.
+
+**Browser acceptance (manual, no automated harness in scope).**
+
+1. Page loads, click-to-play, splash appears.
+2. Menu navigation and difficulty selection.
+3. World map: movement, cloud jump, entering a board.
+4. In-level play: bounce, springs, exit portal, death, lives.
+5. Sound: intro music, SFX, and the Tab overlay's music/SFX toggles.
+6. Password screen accepts a world code and enters that world.
+7. High scores: name entry and the table.
+8. Settings persist across a page reload (`localStorage`).
+9. `Alt+Enter` fullscreen.
+10. All nine worlds load (asset preload covers every `MONDE*.VEC`/`D*.BUM`).
+11. **Frame-pacing measurement** against the 2 % gate above.
+
+## Files touched
+
+| File | Change |
+|---|---|
+| `CMakeLists.txt` | `if(EMSCRIPTEN)` branches; drop `bcrypt` everywhere |
+| `CMakePresets.json` | `web-release` preset |
+| `src/core/sha256.{h,cpp}` | **new** — portable SHA-256 |
+| `tests/cpp/sha256_test.cpp` | **new** — FIPS-180-4 vectors |
+| `src/core/asset_manifest.cpp` | BCrypt → portable SHA-256 |
+| `src/core/port_config.cpp` | `localStorage` branch under `__EMSCRIPTEN__` |
+| `src/app/main.cpp` | fixed `/assets` root; cfg path under Emscripten |
+| `src/platform_sdl3/sdl_app.cpp` | GL guards; forced 4:3; Asyncify yield; audio pump |
+| `src/platform_sdl3/sdl_audio.{h,cpp}` | push-mode stream under Emscripten |
+| `src/game/settings_overlay.cpp` | ASPECT row removed in web build |
+| `src/video/settings_renderer.cpp` | ASPECT row removed in web build |
+| `src/web/shell.html` | **new** — page shell |
+
+## Risks
+
+1. **Frame pacing** — the one open technical question. Gated by measurement, with
+   a defined fallback (rAF + catch-up). Highest-priority item to prove early.
+2. **Audio underruns** — mitigated by push mode and a generous buffer, but
+   browser audio under a jittery main loop is a known trouble spot. May need
+   buffer tuning.
+3. **SDL3 Emscripten maturity** — SDL3's Emscripten backend is less
+   battle-tested than SDL2's, and the port pins a specific SDL revision
+   (`CMakeLists.txt`, `GIT_TAG 8e37db5e`) that predates some Emscripten fixes.
+   Mitigation if it misbehaves: move the pin forward to a newer SDL3 revision
+   for both desktop and web, re-running the desktop suite to confirm no
+   regression. Dropping to SDL2 is explicitly out of scope.
+4. **Asyncify build size/speed** — expected +30-40 % wasm size. Acceptable, and
+   reducible later with `ASYNCIFY_ONLY` if it ever matters.
+
+## Phasing
+
+1. Portable SHA-256 (TDD, desktop-only change, keeps the suite green).
+2. emsdk + CMake Emscripten branch; get *something* linking.
+3. Asyncify yield + GL guards → first frame in a browser tab.
+4. **Frame-pacing measurement and gate.**
+5. Assets, `localStorage` config, forced 4:3, overlay row removal.
+6. Audio push mode.
+7. HTML shell polish.
+8. Full manual acceptance pass.

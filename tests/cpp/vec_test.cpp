@@ -3,16 +3,12 @@
 
 #include "resources/vec.h"
 
-#include <windows.h>
-#include <bcrypt.h>
+#include "core/sha256.h"
 
-#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <iomanip>
 #include <map>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -20,76 +16,8 @@
 
 namespace {
 
-void check_status(NTSTATUS status, const char* operation) {
-    if (status < 0) {
-        throw std::runtime_error(operation);
-    }
-}
-
 std::string sha256_hex(std::span<const std::uint8_t> bytes) {
-    BCRYPT_ALG_HANDLE algorithm{};
-    BCRYPT_HASH_HANDLE hash{};
-    check_status(
-        BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0),
-        "BCryptOpenAlgorithmProvider failed");
-
-    try {
-        ULONG object_size{};
-        ULONG copied{};
-        check_status(
-            BCryptGetProperty(
-                algorithm,
-                BCRYPT_OBJECT_LENGTH,
-                reinterpret_cast<PUCHAR>(&object_size),
-                sizeof(object_size),
-                &copied,
-                0),
-            "BCryptGetProperty failed");
-        std::vector<UCHAR> hash_object(object_size);
-        check_status(
-            BCryptCreateHash(
-                algorithm,
-                &hash,
-                hash_object.data(),
-                static_cast<ULONG>(hash_object.size()),
-                nullptr,
-                0,
-                0),
-            "BCryptCreateHash failed");
-        if (!bytes.empty()) {
-            check_status(
-                BCryptHashData(
-                    hash,
-                    const_cast<PUCHAR>(reinterpret_cast<const UCHAR*>(bytes.data())),
-                    static_cast<ULONG>(bytes.size()),
-                    0),
-                "BCryptHashData failed");
-        }
-
-        std::array<UCHAR, 32> digest{};
-        check_status(
-            BCryptFinishHash(hash, digest.data(), static_cast<ULONG>(digest.size()), 0),
-            "BCryptFinishHash failed");
-        BCryptDestroyHash(hash);
-        hash = nullptr;
-        BCryptCloseAlgorithmProvider(algorithm, 0);
-        algorithm = nullptr;
-
-        std::ostringstream text;
-        text << std::hex << std::setfill('0');
-        for (const auto byte : digest) {
-            text << std::setw(2) << static_cast<unsigned>(byte);
-        }
-        return text.str();
-    } catch (...) {
-        if (hash) {
-            BCryptDestroyHash(hash);
-        }
-        if (algorithm) {
-            BCryptCloseAlgorithmProvider(algorithm, 0);
-        }
-        throw;
-    }
+    return bumpy::sha256_hex(bytes.data(), bytes.size());
 }
 
 void append_be_u16(std::vector<std::uint8_t>& bytes, std::uint16_t value) {

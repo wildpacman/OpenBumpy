@@ -20,6 +20,7 @@ FetchContent_MakeAvailable(SDL Catch2 ymfm)
 add_library(bumpy_core
   src/core/indexed_framebuffer.cpp
   src/core/asset_manifest.cpp
+  src/core/sha256.cpp
   src/core/port_config.cpp
   src/game/menu.cpp
   src/game/high_scores.cpp
@@ -67,7 +68,6 @@ add_library(bumpy_core
   src/video3d/scene3d.cpp
   src/video3d/slab_mesh.cpp)
 target_include_directories(bumpy_core PUBLIC src)
-target_link_libraries(bumpy_core PUBLIC bcrypt)
 
 target_sources(bumpy_core PRIVATE
   ${ymfm_SOURCE_DIR}/src/ymfm_opl.cpp
@@ -117,6 +117,7 @@ add_executable(bumpy_tests
   tests/cpp/indexed_framebuffer_test.cpp
   tests/cpp/asset_manifest_test.cpp
   tests/cpp/port_config_test.cpp
+  tests/cpp/sha256_test.cpp
   tests/cpp/binary_reader_test.cpp
   tests/cpp/vec_test.cpp
   tests/cpp/sprite_frame_test.cpp

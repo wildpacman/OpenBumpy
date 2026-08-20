@@ -25,6 +25,10 @@
 #include <optional>
 #include <stdexcept>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 namespace {
 
 void require(bool ok) {
@@ -466,6 +470,21 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
         next_frame += tick_period;
         const Uint64 now = SDL_GetPerformanceCounter();
         if (now < next_frame) {
+#ifdef __EMSCRIPTEN__
+            // A blocking wait freezes the tab: the browser only composites, services
+            // input, and runs audio when it has the thread back. Asyncify makes
+            // emscripten_sleep a real unwind/rewind, so this yields instead of spinning.
+            // The deadline arithmetic is deliberately unchanged -- the pace still comes
+            // from the wall clock, not from the display refresh rate.
+            for (;;) {
+                const Uint64 tick = SDL_GetPerformanceCounter();
+                if (tick >= next_frame) {
+                    break;
+                }
+                const Uint64 remaining_ms = ((next_frame - tick) * 1000) / perf_freq;
+                emscripten_sleep(remaining_ms > 1 ? static_cast<unsigned>(remaining_ms - 1) : 0);
+            }
+#else
             const Uint64 remaining = next_frame - now;
             const Uint64 remaining_ms = (remaining * 1000) / perf_freq;
             if (remaining_ms > 1) {
@@ -474,6 +493,7 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
             while (SDL_GetPerformanceCounter() < next_frame) {
                 // spin the last <=1ms
             }
+#endif
         } else {
             next_frame = now;  // behind schedule -> resync
         }

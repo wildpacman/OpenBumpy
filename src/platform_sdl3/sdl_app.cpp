@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -467,6 +468,13 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
     // final sub-millisecond for an accurate cadence. If a frame ran long, resync instead
     // of accumulating debt.
     auto wait_next_tick = [&](Uint64 tick_period) {
+#if defined(BUMPY_PACE_PROBE)
+        // Pace probe (opt-in, never in a shipped build). wait_next_tick is the single
+        // mechanism the web port's cadence depends on and it runs on every screen, so
+        // instrumenting it -- rather than in-level ticks -- needs no gameplay and
+        // measures desktop and browser with the same code.
+        const Uint64 probe_entry = SDL_GetPerformanceCounter();
+#endif
         next_frame += tick_period;
         const Uint64 now = SDL_GetPerformanceCounter();
         if (now < next_frame) {
@@ -497,6 +505,51 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
         } else {
             next_frame = now;  // behind schedule -> resync
         }
+#if defined(BUMPY_PACE_PROBE)
+        {
+            // Report every 300 calls. The window is measured exit-to-exit so it spans
+            // exactly 300 whole periods (frame work + wait), never a ragged half period.
+            //   achieved  = 300 / window seconds
+            //   requested = perf_freq / tick_period on the most recent call
+            //   busy      = (window - time spent inside this wait) / window, i.e. the
+            //               share of each period spent on frame work. Near or above 1.0
+            //               means the loop is saturated and the rate is limited by the
+            //               work, not by the waiting mechanism.
+            const Uint64 probe_exit = SDL_GetPerformanceCounter();
+            static Uint64 probe_window_start = 0;
+            static Uint64 probe_wait_total = 0;
+            static Uint64 probe_period_prev = 0;
+            static bool probe_period_varied = false;
+            static int probe_calls = 0;
+            if (probe_window_start == 0) {
+                probe_window_start = probe_exit;  // first call only opens the window
+            } else {
+                probe_wait_total += probe_exit - probe_entry;
+                if (tick_period != probe_period_prev) {
+                    probe_period_varied = true;
+                }
+                if (++probe_calls == 300) {
+                    const double freq = static_cast<double>(perf_freq);
+                    const double elapsed =
+                        static_cast<double>(probe_exit - probe_window_start) / freq;
+                    const double waited = static_cast<double>(probe_wait_total) / freq;
+                    std::printf(
+                        "[pace] 300 waits in %.1f ms -> %.3f Hz achieved, %.3f Hz "
+                        "requested%s, busy %.3f\n",
+                        elapsed * 1000.0, 300.0 / elapsed,
+                        freq / static_cast<double>(tick_period),
+                        probe_period_varied ? " (VARIED across window)" : "",
+                        (elapsed - waited) / elapsed);
+                    std::fflush(stdout);
+                    probe_window_start = probe_exit;
+                    probe_wait_total = 0;
+                    probe_calls = 0;
+                    probe_period_varied = false;
+                }
+            }
+            probe_period_prev = tick_period;
+        }
+#endif
     };
 
     while (running) {

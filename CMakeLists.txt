@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.25)
 project(bumpy_port VERSION 0.1.0 LANGUAGES CXX)
 
+# Opt-in instrumentation for comparing tick pacing between the desktop and web
+# builds. Off by default: it prints to stdout every 300 waits.
+option(BUMPY_PACE_PROBE "Print frame-pacing measurements" OFF)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -81,6 +85,9 @@ add_library(bumpy_platform_sdl3
   src/platform_sdl3/sdl_audio.cpp)
 target_include_directories(bumpy_platform_sdl3 PUBLIC src)
 target_link_libraries(bumpy_platform_sdl3 PUBLIC bumpy_core SDL3::SDL3)
+if(BUMPY_PACE_PROBE)
+  target_compile_definitions(bumpy_platform_sdl3 PRIVATE BUMPY_PACE_PROBE)
+endif()
 # Stage 1 of the web port is flat-only: no GL is compiled for Emscripten. Stage 2
 # (WebGL2 + GLES 3.00 shaders) reopens this branch.
 if(NOT EMSCRIPTEN)

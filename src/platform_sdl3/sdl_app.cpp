@@ -301,6 +301,12 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
 #else
     bool render3d = config.render3d && gl_ != nullptr;
 #endif
+#ifdef __EMSCRIPTEN__
+    // Product decision: the web build is 4:3 only. 4:3 stays the base geometry, so any
+    // future widescreen extends the 4:3 view rather than stretching a 16:10 image.
+    square_pixels = false;
+    config.square_pixels = false;
+#endif
     auto apply_aspect = [&]() {
         if (!renderer_) {
             return;  // GL path: present_flat picks 200/240 from square_pixels directly
@@ -587,6 +593,7 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                     SDL_SetWindowFullscreen(window_, !fullscreen);
                     config.fullscreen = !fullscreen;
                     persist();
+#ifndef __EMSCRIPTEN__
                 } else if (event.key.key == SDLK_A && (event.key.mod & SDL_KMOD_ALT)) {
                     // Alt+A: flip the flat-path display aspect between 16:10 and
                     // 4:3 (CRT). The 3D scene is always 4:3-corrected; this only
@@ -595,6 +602,7 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                     apply_aspect();
                     config.square_pixels = square_pixels;
                     persist();
+#endif
 #ifndef __EMSCRIPTEN__
                 } else if (event.key.key == SDLK_3 && (event.key.mod & SDL_KMOD_ALT)) {
                     // Alt+3: original <-> 3D diorama (hard cut, per the design spec).
@@ -658,12 +666,14 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                 }
 #endif
                 break;
+#ifndef __EMSCRIPTEN__
             case SettingsEvent::toggle_aspect:
                 square_pixels = !square_pixels;
                 apply_aspect();
                 config.square_pixels = square_pixels;
                 persist();
                 break;
+#endif
             case SettingsEvent::toggle_fullscreen: {
                 const bool fs = (SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN) != 0;
                 SDL_SetWindowFullscreen(window_, !fs);

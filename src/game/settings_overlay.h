@@ -19,7 +19,11 @@ enum class SettingsEvent {
 
 // Selectable-row counts per page (passwords is read-only). Shared with the renderer.
 inline constexpr int kRootRowCount = 4;   // VIDEO, AUDIO, PASSWORDS, QUIT
+#ifdef __EMSCRIPTEN__
+inline constexpr int kVideoRowCount = 2;  // 3D, FULLSCREEN (the web build is 4:3 only)
+#else
 inline constexpr int kVideoRowCount = 3;  // 3D, ASPECT, FULLSCREEN
+#endif
 inline constexpr int kAudioRowCount = 2;  // MUSIC, SOUND
 
 // Per-frame snapshot the shell assembles from the overlay's nav state plus the live

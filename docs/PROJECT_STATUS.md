@@ -74,8 +74,13 @@ only a platform adapter.
   for WebAssembly with Emscripten and runs from a static URL, reusing the
   `SDL_Renderer` fallback path (no GL compiled). Assets are baked into the
   build; settings persist to `localStorage`; 4:3 only. Stage 2 — a WebGL2
-  context plus the five shaders ported to GLES 3.00, which brings back
-  `Alt+3` and `Alt+H` — is not started. See
+  context plus the five shaders ported to GLES 3.00, which would restore the
+  3D diorama (`Alt+3`) — is not started; it would also extend to HD (`Alt+H`)
+  if the separate, currently-unmerged `feat/hd-render-mode` branch is ever
+  merged into desktop first. Verified: the desktop build + full Catch2 suite
+  are unaffected and the web build itself compiles and runs from a static
+  URL; the in-browser playthrough is still pending (see
+  `docs/web-acceptance.md`). See
   `docs/superpowers/specs/2026-08-20-web-port-classic-design.md`.
 
 ## Current state

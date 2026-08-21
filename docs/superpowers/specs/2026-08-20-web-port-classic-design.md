@@ -11,9 +11,12 @@ presentation only**, using the `SDL_Renderer` path that `SdlApp` already carries
 as its no-GL fallback (`src/platform_sdl3/sdl_app.cpp:110-149`). No shader is
 touched and no GL code is compiled in this stage.
 
-The 3D diorama (`Alt+3`) and the HD/xBRZ mode are **stage 2**, deferred to their
-own branch and spec. The `#ifdef` seams introduced here are exactly the points
-that stage 2 reopens.
+The 3D diorama (`Alt+3`) is **stage 2**, deferred to its own branch and spec.
+(The HD/xBRZ mode lives only on a separate, currently-unmerged branch,
+`feat/hd-render-mode` — it is not part of desktop master, so this design does
+not treat it as an existing feature the web build lacks. If that branch is
+ever merged, stage 2's GLES work would extend to it too.) The `#ifdef` seams
+introduced here are exactly the points that stage 2 reopens.
 
 ### Why this is not "just a recompile"
 
@@ -53,7 +56,8 @@ instead of GL 3.3 core, and port five shaders from `#version 330 core` to
 
 ## Non-goals
 
-- No 3D mode, no HD/xBRZ mode, no GL of any kind (stage 2).
+- No 3D mode, no GL of any kind (stage 2). (HD/xBRZ is not part of desktop
+  master — see the Overview's note — so it is not a web-build non-goal either.)
 - No 16:10 aspect option in the web build (see "Display" — this is a decision,
   not an omission).
 - No mobile/touch controls.
@@ -69,7 +73,7 @@ instead of GL 3.3 core, and port five shaders from `#version 330 core` to
 | Question | Decision |
 |---|---|
 | Asset delivery | **Baked into the build** (`--preload-file`), not user-supplied. |
-| Scope of this branch | **Classic only.** 3D/HD deferred to stage 2. |
+| Scope of this branch | **Classic only.** 3D deferred to stage 2; HD is a separate, unmerged branch (`feat/hd-render-mode`), not part of desktop master. |
 | Display aspect | **4:3 only.** The 16:10 option is removed from the web build. |
 | Main-loop strategy | **Asyncify**, not a `run()` refactor. |
 | Toolchain | Claude installs emsdk to `C:\dev\emsdk`. Done: **6.0.8**, binaries at `C:\dev\emsdk\upstream\emscripten\*.exe`. |

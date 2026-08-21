@@ -97,7 +97,7 @@ still `bumpy_port.exe`, matching the CMake project name).
 ## Browser build
 
 The classic (flat, original-look) presentation also builds for the browser
-with Emscripten. The 3D and HD render modes are desktop-only for now.
+with Emscripten. The 3D render mode is desktop-only for now.
 
 Prerequisites: [emsdk](https://emscripten.org/docs/getting_started/downloads.html)
 (tested with 6.0.8). Like `windows-debug`'s hardcoded generator, the
@@ -120,9 +120,11 @@ which would have needed cross-origin isolation).
 Differences from the desktop build, all deliberate:
 
 - 4:3 only — no ASPECT row and no `Alt+A`.
-- No 3D (`Alt+3`) or HD (`Alt+H`) mode.
+- No 3D (`Alt+3`) mode.
 - Settings persist to `localStorage` instead of `bumpy_port.cfg`.
-- High scores stay session-only, same as the desktop build and the original.
+
+High scores stay session-only on both platforms, exactly as in the original —
+that's not a difference, just worth restating.
 
 ## Controls
 

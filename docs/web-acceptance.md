@@ -36,15 +36,20 @@ set got staged).
 
 ## 3. Display — carried (Task 5, half-verified)
 
-The 4:3 geometry itself was measured before the session was stopped: the
-rendered content box came out at exactly 1.3333, pillarboxed. What was never
-checked:
+The 4:3 geometry itself was measured before the session was stopped: on the
+wider-than-4:3 window tested, the rendered content box came out at exactly
+1.3333 with pillarboxing (bars on the left/right — SDL's letterbox
+presentation mode produces side bars when the window is wider than the 4:3
+content and top/bottom bars when it is narrower; "letterbox" names the SDL
+mode, not the bar orientation you'll actually see). What was never checked:
 
 - [ ] Tab overlay → VIDEO shows **exactly two rows**: `3D` (showing OFF, not
       selectable — no GL in stage 1) and `FULLSCREEN`. No ASPECT row.
 - [ ] **`Alt+A` does nothing** (on desktop it flips 16:10 ↔ 4:3; in the browser
       it must be inert)
-- [ ] Picture stays 4:3 letterboxed at several window sizes, never stretched
+- [ ] Picture stays 4:3 at several window sizes, never stretched — pillarboxed
+      (side bars) when the window is wider than 4:3, letterboxed (top/bottom
+      bars) when it is narrower
 
 ## 4. Settings persistence — carried (Task 6, never round-tripped)
 
@@ -129,7 +134,8 @@ So you know where the floor is, independent of everything above:
 - Every source file force-rebuilt for both targets at the end: **zero warnings**
   on either platform
 - `bumpy.data` = 600,148 bytes, independently confirmed as the manifest's 50
-  entries minus the three DOS binaries nothing loads
+  entries minus the two DOS binaries and one text file nothing loads
+  (`BUMPY.EXE`, `BUMP-Y.EXE`, `OLD-GAMES.NFO`)
 - The splash screen rendering in a browser tab, with the tab staying responsive
   to scrolling and JS evaluation while the game loop ran
 - The 4:3 content box measured at exactly 1.3333

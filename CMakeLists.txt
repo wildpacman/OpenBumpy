@@ -9,6 +9,27 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Emscripten disables exception CATCHING by default: it compiles with
+# -fignore-exceptions, which drops every `catch` handler, and turns a `throw` into an
+# abort. This port uses exceptions for graceful degradation in five places that all
+# matter to a player: a missing audio device leaves the game muted rather than dead,
+# a machine or browser with no usable GL context falls back to the flat SDL_Renderer
+# presentation, a shader failure disables the diorama for the run, a world whose
+# assets fail to load keeps the player on the current one, and main()'s top-level
+# catch reports the failure instead of vanishing. Without this flag every one of
+# them aborts the tab instead of degrading.
+#
+# Directory scope, ahead of the dependencies, so it covers every translation unit an
+# exception can unwind through; also a LINK option, because that is what makes emcc
+# emit the invoke_* trampolines the catching depends on. -fexceptions (the JS-based
+# implementation), not -fwasm-exceptions: the latter is smaller and faster but needs
+# every object in the link, SDL included, to agree on it and rests on the Wasm EH
+# proposal.
+if(EMSCRIPTEN)
+  add_compile_options(-fexceptions)
+  add_link_options(-fexceptions)
+endif()
+
 include(FetchContent)
 FetchContent_Declare(SDL
   GIT_REPOSITORY https://github.com/libsdl-org/SDL.git

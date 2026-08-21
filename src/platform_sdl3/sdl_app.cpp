@@ -3,9 +3,7 @@
 #include "game/level_game.h"
 #include "game/settings_overlay.h"
 #include "game/speed_pacer.h"
-#ifndef __EMSCRIPTEN__
 #include "platform_gl3/scene_renderer.h"
-#endif
 #include "resources/world_resources.h"
 #include "video/board_renderer.h"
 #include "video/high_score_renderer.h"
@@ -97,12 +95,18 @@ SdlApp::SdlApp() {
     // SDL_OpenAudioDeviceStream) because SDL_OpenAudioDeviceStream fails with
     // "Audio subsystem is not initialized" if the subsystem was never brought up.
     require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO));
-#ifndef __EMSCRIPTEN__
-    // Preferred path: a GL 3.3 core context (the GlPresenter carries both the flat
-    // and the 3D presentation). Attributes must be set before window creation.
+    // Preferred path: a GL 3.3 core context on desktop, GLES 3.0 (WebGL2) in a
+    // browser. The GlPresenter carries both the flat and the diorama presentation on
+    // either. Attributes must be set before window creation.
+#ifdef __EMSCRIPTEN__
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+#else
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+#endif
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     window_ = SDL_CreateWindow("Bumpy's Arcade Fantasy", 960, 600,
                                SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
@@ -110,18 +114,15 @@ SdlApp::SdlApp() {
         try {
             gl_ = std::make_unique<GlPresenter>(window_);
         } catch (const std::exception& error) {
-            std::cerr << "warning: OpenGL 3.3 unavailable, falling back to SDL_Renderer"
-                         " (3D mode disabled): " << error.what() << '\n';
+            // A machine without GL 3.3, or a browser without WebGL2, falls back to the
+            // flat SDL_Renderer presentation rather than failing to start.
+            std::cerr << "warning: no usable GL context, falling back to SDL_Renderer"
+                         " (diorama disabled): " << error.what() << '\n';
             SDL_DestroyWindow(window_);
             window_ = nullptr;
         }
     }
     if (!gl_) {
-#else
-    // The web build (stage 1) is flat-only: no GL is compiled, so go straight to
-    // the SDL_Renderer path the desktop build uses as its fallback.
-    {
-#endif
         // Fallback: the original SDL_Renderer presentation, flat only.
         window_ = SDL_CreateWindow("Bumpy's Arcade Fantasy", 960, 600, SDL_WINDOW_RESIZABLE);
         if (!window_) {
@@ -175,9 +176,7 @@ SdlApp::~SdlApp() {
     // destruction touching an already-destroyed window -- hence the explicit reset here.
     // (The declaration order -- gl_ last -- still matters for the theoretical partial-
     // construction unwind path, where no destructor body runs at all.)
-#ifndef __EMSCRIPTEN__
     gl_.reset();
-#endif
     SDL_DestroyTexture(texture_);
     SDL_DestroyRenderer(renderer_);
     SDL_DestroyWindow(window_);
@@ -336,7 +335,6 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
         }
     };
 
-#ifndef __EMSCRIPTEN__
     // --- 3D diorama state (Alt+3). The flat 320x200 composition in `frame` still
     // runs every frame even in 3D mode: the screen-change darken snapshots it, and
     // it keeps the two paths trivially in sync. 3D only swaps the PRESENTATION.
@@ -460,20 +458,12 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
         SDL_GL_SwapWindow(window_);
         return true;
     };
-#else
-    // Stage 1 of the web port compiles no GL, so both 3D presentations are permanently
-    // unavailable and every call site below falls through to the flat path unchanged.
-    auto present_3d_level = []() { return false; };
-    auto present_3d_wipe = []() { return false; };
-#endif
 
     auto present_frame = [&]() {
-#ifndef __EMSCRIPTEN__
         if (gl_) {
             gl_->present_flat(frame, square_pixels ? 200 : 240);
             return;
         }
-#endif
         const auto rgba = frame.to_rgba();
         require(SDL_UpdateTexture(
             texture_, nullptr, rgba.data(), frame.width() * sizeof(std::uint32_t)));
@@ -626,7 +616,6 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                     config.square_pixels = square_pixels;
                     persist();
 #endif
-#ifndef __EMSCRIPTEN__
                 } else if (event.key.key == SDLK_3 && (event.key.mod & SDL_KMOD_ALT)) {
                     // Alt+3: original <-> 3D diorama (hard cut, per the design spec).
                     if (gl_) {
@@ -645,7 +634,6 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                                           : "shader reload failed; keeping previous\n");
                     }
 #endif
-#endif  // !__EMSCRIPTEN__
                 } else if (event.key.key == SDLK_TAB) {
                     // Tab: open/close the settings overlay. Only openable on the play
                     // surfaces (menu / map / level); a no-op elsewhere.
@@ -766,11 +754,9 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
             if (++darken_hold >= kDarkenFramesPerRing) {
                 darken_hold = 0;
                 transition.advance();  // may deactivate after the final (fully black) ring
-#ifndef __EMSCRIPTEN__
                 if (!transition.active()) {
                     wipe_3d = false;  // the 3D close (if any) is done; next wipe re-arms
                 }
-#endif
             }
             continue;
         }
@@ -857,7 +843,6 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                         // darken would freeze the previous (still-descending) frame, leaving the
                         // ball visibly on top of the pit.
                         render_level();
-#ifndef __EMSCRIPTEN__
                         // In 3D mode the darken must keep the diorama on screen:
                         // stash the same resolved scene for present_3d_wipe to
                         // replay under the closing border (the flat `frame`
@@ -870,7 +855,6 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                             wipe_light_x = static_cast<float>(game->ball_x());
                             wipe_light_y = static_cast<float>(game->ball_y());
                         }
-#endif
                         // Win/lose/game-over: carry lives+score back and update the run.
                         app.finish_level(game->status(), game->lives(), game->score());
                         game.reset();

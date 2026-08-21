@@ -6,9 +6,7 @@
 #include "core/indexed_framebuffer.h"
 #include "core/port_config.h"
 #include "game/app.h"
-#ifndef __EMSCRIPTEN__
 #include "platform_gl3/gl_presenter.h"
-#endif
 #include "platform_sdl3/sdl_audio.h"
 #include "resources/font.h"
 #include "resources/world_resources.h"
@@ -32,13 +30,7 @@ public:
     // True when the GL 3.3 presenter is live (constructor succeeded); false means the
     // SDL_Renderer fallback is in use (flat presentation only, no 3D mode). Consumed by
     // later tasks that gate 3D-mode input/UI on GL availability.
-#ifdef __EMSCRIPTEN__
-    // Stage 1 of the web port compiles no GL at all, so the 3D presentation is never
-    // available and every caller that gates on it takes the flat path.
-    [[nodiscard]] bool gl_available() const noexcept { return false; }
-#else
     [[nodiscard]] bool gl_available() const noexcept { return gl_ != nullptr; }
-#endif
 
     // Optional audio pump, driven once per loop iteration. Null means desktop (SDL's
     // audio thread pulls instead) or a failed device open (the game runs muted).
@@ -68,12 +60,10 @@ private:
     SDL_Window* window_{};
     SDL_Renderer* renderer_{};
     SDL_Texture* texture_{};
-#ifndef __EMSCRIPTEN__
     // Declared AFTER window_ so member-destruction order (reverse of declaration) tears
     // gl_ down BEFORE window_ is destroyed -- the GL context it owns must go while the
     // window that hosts it still exists.
     std::unique_ptr<GlPresenter> gl_;
-#endif
     SdlAudio* audio_pump_{};
 };
 

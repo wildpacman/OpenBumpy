@@ -315,12 +315,28 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
             renderer_, 320, square_pixels ? 200 : 240, SDL_LOGICAL_PRESENTATION_LETTERBOX));
     };
     apply_aspect();
+#ifndef __EMSCRIPTEN__
+    // Not applied on the web: config.fullscreen defaults to true, so a first-time visitor
+    // with no stored settings would have the page seize their screen before asking, which
+    // is hostile -- and a fullscreen request made outside a user gesture is refused by
+    // browsers anyway. The stored flag is left untouched on purpose (not forced false, the
+    // way square_pixels is above): Alt+Enter and the overlay's FULLSCREEN row still toggle
+    // and persist it normally, it simply is not auto-applied on load.
     if (config.fullscreen) {
         SDL_SetWindowFullscreen(window_, true);
     }
+#endif
     auto persist = [&]() {
         if (!save_port_config(config_path, config)) {
+#ifdef __EMSCRIPTEN__
+            // config_path is a placeholder that is never opened here -- the web build
+            // persists to localStorage -- so naming it would point at the wrong thing. A
+            // failure is a rejected setItem: storage disabled (private mode, blocked
+            // cookies) or over quota.
+            std::cerr << "warning: could not save settings to localStorage\n";
+#else
             std::cerr << "warning: could not write " << config_path.string() << '\n';
+#endif
         }
     };
 

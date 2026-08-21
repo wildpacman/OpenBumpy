@@ -3,6 +3,46 @@
 #include <fstream>
 #include <sstream>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/em_js.h>
+
+#include <array>
+#include <string_view>
+
+// The browser has no directory next to an executable, so the five flags live in one
+// localStorage entry holding exactly the key=value text the desktop file format uses.
+// Bytes are copied through HEAPU8 rather than the UTF-8 helpers: the config is ASCII by
+// construction, and this needs no EM_JS_DEPS declaration to link.
+EM_JS(int, bumpy_cfg_read, (char* out, int capacity), {
+    var text;
+    try {
+        text = localStorage.getItem('bumpy_port_cfg');
+    } catch (e) {
+        return -1;  // storage disabled (private mode, blocked cookies) -> use defaults
+    }
+    if (text === null || text.length + 1 > capacity) {
+        return -1;
+    }
+    for (var i = 0; i < text.length; ++i) {
+        HEAPU8[out + i] = text.charCodeAt(i) & 0xff;
+    }
+    HEAPU8[out + text.length] = 0;
+    return text.length;
+});
+
+EM_JS(void, bumpy_cfg_write, (const char* text, int length), {
+    var s = '';
+    for (var i = 0; i < length; ++i) {
+        s += String.fromCharCode(HEAPU8[text + i]);
+    }
+    try {
+        localStorage.setItem('bumpy_port_cfg', s);
+    } catch (e) {
+        // Storage full or disabled: settings just do not survive the reload.
+    }
+});
+#endif
+
 namespace bumpy {
 
 namespace {
@@ -66,6 +106,15 @@ std::string serialize_port_config(const PortConfig& config) {
 }
 
 PortConfig load_port_config(const std::filesystem::path& path) noexcept {
+#ifdef __EMSCRIPTEN__
+    (void)path;  // the web build persists to localStorage, not to a file
+    std::array<char, 1024> buffer{};
+    const int length = bumpy_cfg_read(buffer.data(), static_cast<int>(buffer.size()));
+    if (length < 0) {
+        return {};
+    }
+    return parse_port_config(std::string_view(buffer.data(), static_cast<std::size_t>(length)));
+#else
     try {
         std::ifstream in(path, std::ios::binary);
         if (!in) {
@@ -77,9 +126,20 @@ PortConfig load_port_config(const std::filesystem::path& path) noexcept {
     } catch (...) {
         return {};
     }
+#endif
 }
 
 bool save_port_config(const std::filesystem::path& path, const PortConfig& config) noexcept {
+#ifdef __EMSCRIPTEN__
+    (void)path;
+    try {
+        const std::string text = serialize_port_config(config);
+        bumpy_cfg_write(text.c_str(), static_cast<int>(text.size()));
+        return true;
+    } catch (...) {
+        return false;
+    }
+#else
     try {
         std::ofstream out(path, std::ios::binary | std::ios::trunc);
         if (!out) {
@@ -90,6 +150,7 @@ bool save_port_config(const std::filesystem::path& path, const PortConfig& confi
     } catch (...) {
         return false;
     }
+#endif
 }
 
 }  // namespace bumpy

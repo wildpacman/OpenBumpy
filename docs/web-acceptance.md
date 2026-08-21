@@ -98,7 +98,13 @@ the main stack unwound is a corruption hazard. The buffer targets ~100 ms.
 - [ ] Game over screen, and the DESSFIN.VEC outro
 - [ ] **All nine worlds load** — enter each via its password (Tab → PASSWORDS
       lists the codes for worlds 2-9)
-- [ ] `Alt+Enter` enters and leaves fullscreen
+- [ ] `Alt+Enter` enters and leaves fullscreen — **undock DevTools into its own
+      window before testing this.** Docked DevTools takes its width out of the
+      page, so the fullscreen viewport comes back narrower than the screen and
+      the 4:3 picture looks stranded and off-centre. That is the measuring tool
+      changing what it measures, not a bug: with DevTools undocked the picture
+      fills the screen height and the black bars sit on the sides, which is
+      correct 4:3 letterboxing on a 16:10 monitor.
 - [ ] **Quitting signs off instead of dying.** Tab → QUIT (and separately,
       Escape from the menu) must bring back the gate reading **THANKS FOR
       PLAYING / CLICK TO RESTART**. Clicking it reloads into a fresh game with

@@ -56,7 +56,23 @@ Run from the repository root (`C:\dev\BUMPY`) — the tool resolves assets by re
 sha256sum baseline-3d.bmp
 ```
 
-Keep this value. It is the gate for Step 6. If this command fails, stop and report BLOCKED — without a baseline there is no way to prove the shader change is inert.
+Now take it a **second** time and confirm the two agree:
+
+```
+build\windows-debug\Debug\bumpy_port.exe --render-3d 1 MONDE1.VEC 0 baseline-3d-b.bmp
+sha256sum baseline-3d.bmp baseline-3d-b.bmp
+```
+
+Expected: **the two digests match.** This validates the gate before the gate is
+trusted. The dump was measured stable across seven consecutive runs including a
+relink, but two runs earlier in the same session disagreed for reasons nobody has
+explained — and a gate that flutters is worse than no gate, because a false failure
+halts the work and a false pass waves a real regression through.
+
+If the two baselines disagree, **stop and report BLOCKED**: the gate is unusable and
+Task 1 must not proceed on a signal it cannot trust. If the command fails outright,
+report BLOCKED for the same reason — without a baseline there is no way to show the
+shader change is inert.
 
 - [ ] **Step 2: Add the preamble**
 
@@ -162,7 +178,7 @@ Expected: PASS, all tests, no test file edited.
 - [ ] **Step 8: Delete the scratch dumps and commit**
 
 ```bash
-rm -f baseline-3d.bmp after-3d.bmp
+rm -f baseline-3d.bmp baseline-3d-b.bmp after-3d.bmp
 git add src/platform_gl3/gl_util.cpp src/platform_gl3/gl_presenter.cpp shaders3d
 git commit -m "refactor(gl): supply the GLSL version line from C++, not the shaders
 

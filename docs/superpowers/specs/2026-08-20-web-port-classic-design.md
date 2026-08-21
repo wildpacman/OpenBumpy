@@ -117,16 +117,22 @@ refresh rate — was sufficient on its own.
 `wait_next_tick` itself (the single mechanism under test, exercised on every
 screen, so no gameplay is needed to run it):
 
-| | achieved | requested | busy fraction |
-|---|---|---|---|
-| Desktop (13 samples) | 70.086 Hz | 70.086 Hz | 0.026 |
-| Browser (12 samples) | 70.082 Hz | 70.087 Hz | 0.377 |
+Both platforms measured in Release; the browser tab was kept foregrounded
+throughout, since background tabs are timer-throttled.
 
-**Difference: 0.005 %**, against a 2 % gate. The `requestAnimationFrame`
-catch-up fallback is therefore not needed and is not implemented.
+| | achieved (mean) | achieved (range) | requested | busy (mean) |
+|---|---|---|---|---|
+| Desktop, 13 samples | 70.086 Hz | all 13 identical | 70.086 Hz | 0.026 |
+| Browser, 12 samples | 70.0866 Hz | 70.028 - 70.143 Hz | 70.087 Hz | 0.375 |
+
+**Difference of the means: 0.0008 %**, against a 2 % gate. Taking instead the
+single worst browser sample — the conservative reading, since a mean can hide
+jitter — the largest deviation from desktop is **0.083 %**, still twenty-four
+times inside the gate. The `requestAnimationFrame` catch-up fallback is
+therefore not needed and is not implemented.
 
 **Caveat, deliberately recorded.** These samples come from the splash screen,
-whose frame is cheap. The browser spends 0.377 of each period working against
+whose frame is cheap. The browser spends 0.375 of each period working against
 the desktop's 0.026 — still ample headroom, but roughly fourteen times the
 share. Much of that gap is per-wait Asyncify unwind/rewind overhead, which is
 fixed per tick rather than proportional to frame cost, so it should not scale

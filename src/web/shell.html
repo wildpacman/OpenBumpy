@@ -18,6 +18,7 @@
   #gate p  { margin: 0; letter-spacing: .2em; }
   #bar  { width: 240px; height: 6px; border: 1px solid #444; }
   #fill { height: 100%; width: 0; background: #e0c060; transition: width .2s; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -26,13 +27,17 @@
   <h1>BUMPY3D</h1>
   <p id="status">LOADING</p>
   <div id="bar"><div id="fill"></div></div>
+  <p id="hint" hidden>CLICK TO RESTART</p>
 </div>
 <script>
 var canvas = document.getElementById('canvas');
 var gate = document.getElementById('gate');
 var statusLine = document.getElementById('status');
+var bar = document.getElementById('bar');
+var hint = document.getElementById('hint');
 var fill = document.getElementById('fill');
 var ready = false;
+var ended = false;
 
 // Arrows, space and Tab must reach the game rather than scrolling the page or moving
 // focus off the canvas -- Tab is the settings-overlay key.
@@ -55,12 +60,27 @@ var Module = {
     ready = true;
     fill.style.width = '100%';
     statusLine.textContent = 'CLICK TO PLAY';
+  },
+  // Called from main() when the run loop ends (src/app/main.cpp). EXIT_RUNTIME is 0, so
+  // the page outlives the game: without this the player would be looking at a dead canvas
+  // with the gate already hidden. Bring the gate back as a sign-off rather than an error.
+  onGameExit: function () {
+    ended = true;
+    canvas.style.display = 'none';  // SDL leaves the last frame painted; do not freeze on it
+    statusLine.textContent = 'THANKS FOR PLAYING';
+    bar.hidden = true;
+    hint.hidden = false;
+    gate.style.display = 'flex';
   }
 };
 
 // main() is held back (-sINVOKE_RUN=0) until this click: browsers refuse to start audio
 // outside a user gesture, and the audio device opens during SdlApp construction.
 gate.addEventListener('click', function () {
+  // After the game has exited, restart by reloading: SDL_Quit() has already run and a
+  // second Module.callMain([]) into a torn-down runtime is untested. A fresh page is the
+  // only restart we can stand behind, and settings survive it (they live in localStorage).
+  if (ended) { location.reload(); return; }
   if (!ready) { return; }
   gate.style.display = 'none';
   canvas.focus();

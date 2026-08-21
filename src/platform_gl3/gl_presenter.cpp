@@ -10,7 +10,7 @@ namespace {
 // Pixel-art scaling: sample on a LINEAR texture but snap UVs so that pixels stay
 // crisp except a <=1-screen-pixel ramp at texel boundaries. At integer scales the
 // clamp saturates at +-0.5 texel = exact texel centers, i.e. bit-exact nearest.
-constexpr const char* kFlatVert = R"GLSL(#version 330 core
+constexpr const char* kFlatVert = R"GLSL(
 layout(location = 0) in vec2 a_pos;
 layout(location = 1) in vec2 a_uv;
 out vec2 v_uv;
@@ -20,7 +20,7 @@ void main() {
 }
 )GLSL";
 
-constexpr const char* kFlatFrag = R"GLSL(#version 330 core
+constexpr const char* kFlatFrag = R"GLSL(
 in vec2 v_uv;
 out vec4 o_color;
 uniform sampler2D u_tex;

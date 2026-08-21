@@ -1051,6 +1051,10 @@ int run_sdl_menu(const std::filesystem::path& asset_root, int start_world, bumpy
         std::cerr << "warning: could not open audio device, running muted: " << error.what() << '\n';
     }
 
+    if (sdl_audio) {
+        sdl.set_audio_pump(&*sdl_audio);
+    }
+
     return sdl.run(app, renderer, settings_renderer, asset_root, std::move(world),
                    sprite_bank.bytes(), font, resources.splash.decoded_bytes(),
                    outro.decoded_bytes(), score_screen, frame, audio_engine, config, cfg_path);

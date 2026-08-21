@@ -922,6 +922,12 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
             present_frame();
         }
 
+        // Top up the audio queue before yielding: the wait below hands the thread back
+        // to the browser for most of a tick, during which nothing else can feed it.
+        if (audio_pump_) {
+            audio_pump_->pump();
+        }
+
         // Pick this frame's period from the live phase. An in-level game tick is paced by
         // the difficulty mask (FUN_1000_1349): EASY = 2 retraces (35.043 Hz, the historical
         // pace), HARD = 1 (70.086 Hz), MEDIUM alternates. Non-ticking level frames (the

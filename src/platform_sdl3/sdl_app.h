@@ -9,6 +9,7 @@
 #ifndef __EMSCRIPTEN__
 #include "platform_gl3/gl_presenter.h"
 #endif
+#include "platform_sdl3/sdl_audio.h"
 #include "resources/font.h"
 #include "resources/world_resources.h"
 #include "video/menu_renderer.h"
@@ -38,6 +39,10 @@ public:
 #else
     [[nodiscard]] bool gl_available() const noexcept { return gl_ != nullptr; }
 #endif
+
+    // Optional audio pump, driven once per loop iteration. Null means desktop (SDL's
+    // audio thread pulls instead) or a failed device open (the game runs muted).
+    void set_audio_pump(SdlAudio* audio) noexcept { audio_pump_ = audio; }
 
     // Drive the top-level App. Owns the current world's resources (`world`, by value) and
     // reloads them from `asset_root` whenever App requests a new world (pending_world).
@@ -69,6 +74,7 @@ private:
     // window that hosts it still exists.
     std::unique_ptr<GlPresenter> gl_;
 #endif
+    SdlAudio* audio_pump_{};
 };
 
 }  // namespace bumpy

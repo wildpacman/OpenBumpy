@@ -101,27 +101,38 @@ Rejected alternatives, with reasons, so they are not revisited:
   therefore COOP/COEP response headers, which constrains every future hosting
   choice.
 
-#### Open risk: frame pacing (must be measured, not assumed)
+#### Resolved: frame pacing (measured 2026-08-21)
 
 The game ticks at 70.086 Hz (HARD), 35.043 Hz (EASY), or alternating (MEDIUM),
 derived from the original's retrace timing. Browsers clamp `setTimeout` and
-composite at display refresh (commonly 60 Hz). Two failure modes are possible:
+composite at display refresh (commonly 60 Hz), so two failure modes were
+possible: timer clamping stretching each period, or one tick per composited
+frame capping the game at 60/70.086 ≈ 86 % speed.
 
-- Timer clamping stretches each period → the game runs slow.
-- One tick per composited frame → 60/70.086 ≈ 86 % speed on a 60 Hz display.
+Neither happened. Keeping the `SDL_GetPerformanceCounter` deadline as the
+authority — it is wall-clock, not frame-counted, so it is not tied to the
+refresh rate — was sufficient on its own.
 
-The plan is to keep the existing `SDL_GetPerformanceCounter`-based deadline as
-the authority (it is wall-clock, not frame-counted, so it is not intrinsically
-tied to refresh rate) and then **measure**: time a fixed number of level ticks in
-the browser against the same measurement in the desktop build, and compare.
+**Measured**, with a `BUMPY_PACE_PROBE`-guarded probe instrumenting
+`wait_next_tick` itself (the single mechanism under test, exercised on every
+screen, so no gameplay is needed to run it):
 
-**Acceptance gate: measured browser tick rate within 2 % of desktop.** If it is
-not met, the fallback is a `requestAnimationFrame`-driven yield with catch-up
-ticks (multiple game ticks per composited frame, presenting only the last).
-Drawing more than once per compositor frame is cheap here — the browser simply
-shows the latest — so catch-up costs almost nothing at this resolution.
+| | achieved | requested | busy fraction |
+|---|---|---|---|
+| Desktop (13 samples) | 70.086 Hz | 70.086 Hz | 0.026 |
+| Browser (12 samples) | 70.082 Hz | 70.087 Hz | 0.377 |
 
-No claim that pacing is correct will be made before this measurement exists.
+**Difference: 0.005 %**, against a 2 % gate. The `requestAnimationFrame`
+catch-up fallback is therefore not needed and is not implemented.
+
+**Caveat, deliberately recorded.** These samples come from the splash screen,
+whose frame is cheap. The browser spends 0.377 of each period working against
+the desktop's 0.026 — still ample headroom, but roughly fourteen times the
+share. Much of that gap is per-wait Asyncify unwind/rewind overhead, which is
+fixed per tick rather than proportional to frame cost, so it should not scale
+with a busier in-level frame. That is an argument, not a measurement: the
+acceptance playthrough re-runs the probe during actual gameplay to confirm the
+busy fraction stays below 1.0 on a level frame.
 
 ### Portable SHA-256
 

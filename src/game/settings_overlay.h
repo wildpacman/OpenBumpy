@@ -20,7 +20,10 @@ enum class SettingsEvent {
 // Selectable-row counts per page (passwords is read-only). Shared with the renderer.
 inline constexpr int kRootRowCount = 4;   // VIDEO, AUDIO, PASSWORDS, QUIT
 #ifdef __EMSCRIPTEN__
-inline constexpr int kVideoRowCount = 2;  // 3D, FULLSCREEN (the web build is 4:3 only)
+// Web build: FULLSCREEN alone. It is 4:3 only, so there is no ASPECT row, and stage 1
+// compiles no GL, so a 3D row could never do anything -- showing an option that cannot
+// be chosen is worse than not offering it. Stage 2 restores the 3D row with the context.
+inline constexpr int kVideoRowCount = 1;  // FULLSCREEN
 #else
 inline constexpr int kVideoRowCount = 3;  // 3D, ASPECT, FULLSCREEN
 #endif

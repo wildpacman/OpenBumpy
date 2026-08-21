@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bumpy3D</title>
+<title>Bumpy's Arcade Fantasy</title>
 <style>
   html, body { margin: 0; height: 100%; background: #000; color: #c8c8c8;
                font: 14px/1.4 "Courier New", monospace; overflow: hidden; }
@@ -22,7 +22,8 @@
   #gate { position: fixed; inset: 0; z-index: 2; display: flex; gap: 1.5rem;
           flex-direction: column; align-items: center; justify-content: center;
           background: #000; cursor: pointer; }
-  #gate h1 { margin: 0; font-size: 28px; letter-spacing: .3em; color: #e0c060; }
+  #gate h1 { margin: 0; font-size: 24px; letter-spacing: .25em; color: #e0c060;
+             text-align: center; padding: 0 1rem; }
   #gate p  { margin: 0; letter-spacing: .2em; }
   #bar  { width: 240px; height: 6px; border: 1px solid #444; }
   #fill { height: 100%; width: 0; background: #e0c060; transition: width .2s; }
@@ -32,7 +33,7 @@
 <body>
 <div id="frame"><canvas id="canvas" tabindex="-1"></canvas></div>
 <div id="gate">
-  <h1>BUMPY3D</h1>
+  <h1>BUMPY'S ARCADE FANTASY</h1>
   <p id="status">LOADING</p>
   <div id="bar"><div id="fill"></div></div>
   <p id="hint" hidden>CLICK TO RESTART</p>

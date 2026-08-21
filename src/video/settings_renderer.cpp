@@ -92,10 +92,10 @@ void SettingsRenderer::render(const SettingsView& view, IndexedFramebuffer& targ
         break;
     case SettingsPage::video:
         title("VIDEO");
-        row(0, "3D", view.render3d ? "ON" : "OFF");
 #ifdef __EMSCRIPTEN__
-        row(1, "FULLSCREEN", view.fullscreen ? "ON" : "OFF");
+        row(0, "FULLSCREEN", view.fullscreen ? "ON" : "OFF");
 #else
+        row(0, "3D", view.render3d ? "ON" : "OFF");
         row(1, "ASPECT", view.square_pixels ? "16.10" : "4.3");
         row(2, "FULLSCREEN", view.fullscreen ? "ON" : "OFF");
 #endif

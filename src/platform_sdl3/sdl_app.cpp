@@ -474,6 +474,17 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
     // final sub-millisecond for an accurate cadence. If a frame ran long, resync instead
     // of accumulating debt.
     auto wait_next_tick = [&](Uint64 tick_period) {
+        // Top up the audio queue before yielding: the wait below hands the thread back to
+        // the browser for most of a tick, during which nothing else can feed it. It sits
+        // here, not at the bottom of the loop body, because three of the four wait sites
+        // (settings overlay open, screen-change darken, the frame a change begins) wait and
+        // then `continue`. The darken alone is 10 rings x 2 frames = ~285 ms of unfed queue
+        // against a 100 ms target, so every screen change would run it dry. Null when the
+        // audio device failed to open -- that path stays muted, not crashed. Deliberately
+        // ahead of the probe's entry stamp below so pumping counts as frame work, not wait.
+        if (audio_pump_) {
+            audio_pump_->pump();
+        }
 #if defined(BUMPY_PACE_PROBE)
         // Pace probe (opt-in, never in a shipped build). wait_next_tick is the single
         // mechanism the web port's cadence depends on and it runs on every screen, so
@@ -927,12 +938,6 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
 
         if (app.screen() != Screen::level || !present_3d_level()) {
             present_frame();
-        }
-
-        // Top up the audio queue before yielding: the wait below hands the thread back
-        // to the browser for most of a tick, during which nothing else can feed it.
-        if (audio_pump_) {
-            audio_pump_->pump();
         }
 
         // Pick this frame's period from the live phase. An in-level game tick is paced by

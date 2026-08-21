@@ -130,7 +130,16 @@ Remember to rebuild with `-DBUMPY_PACE_PROBE=OFF` afterwards.
 So you know where the floor is, independent of everything above:
 
 - Desktop build and the full Catch2 suite green after every one of the nine
-  tasks, with no test file edited anywhere on the branch
+  tasks. Two test files did change, and it is worth knowing exactly how:
+  `tests/cpp/sha256_test.cpp` is new (it covers the portable SHA-256 that
+  replaced the BCrypt dependency), and `tests/cpp/vec_test.cpp` lost its own
+  second, independent BCrypt SHA-256 implementation — it only linked at all
+  because `bumpy_core` pulled in `bcrypt`, so dropping that link forced the
+  change. It now calls the implementation under test. The digests it compares
+  against are hardcoded constants recorded under BCrypt, so the new code still
+  has to reproduce them bit-for-bit: the test remains an independent check, not
+  a self-consistent one. No other test file on the branch was touched, and no
+  existing assertion was weakened or removed.
 - Every source file force-rebuilt for both targets at the end: **zero warnings**
   on either platform
 - `bumpy.data` = 600,148 bytes, independently confirmed as the manifest's 50

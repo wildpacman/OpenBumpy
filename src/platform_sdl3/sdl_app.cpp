@@ -296,11 +296,7 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
     // the GL presenter is live (Alt+3 needs shaders); the flag itself is kept so a
     // machine upgrade re-enables it.
     bool square_pixels = config.square_pixels;
-#ifdef __EMSCRIPTEN__
-    bool render3d = false;  // stage 1 of the web port compiles no GL
-#else
-    bool render3d = config.render3d && gl_ != nullptr;
-#endif
+    bool render3d = config.render3d && gl_available();
 #ifdef __EMSCRIPTEN__
     // Product decision: the web build is 4:3 only. 4:3 stays the base geometry, so any
     // future widescreen extends the 4:3 view rather than stretching a 16:10 image.
@@ -679,19 +675,13 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
         // no game tick, no transition stepping. Input drives the overlay; each event is
         // applied here (side effect + PortConfig write), reusing the hotkey side effects.
         if (overlay_open) {
-#ifdef __EMSCRIPTEN__
-            switch (overlay.update(input, false)) {
-#else
-            switch (overlay.update(input, gl_ != nullptr)) {
-#endif
+            switch (overlay.update(input, gl_available())) {
             case SettingsEvent::toggle_3d:
-#ifndef __EMSCRIPTEN__
-                if (gl_) {
+                if (gl_available()) {
                     render3d = !render3d;
                     config.render3d = render3d;
                     persist();
                 }
-#endif
                 break;
 #ifdef __EMSCRIPTEN__
             case SettingsEvent::toggle_aspect:
@@ -755,11 +745,7 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                 view.fullscreen = (SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN) != 0;
                 view.music = config.music;
                 view.sfx = config.sfx;
-#ifdef __EMSCRIPTEN__
-                view.render3d_available = false;
-#else
-                view.render3d_available = gl_ != nullptr;
-#endif
+                view.render3d_available = gl_available();
                 settings_renderer.render(view, frame);
                 present_frame();  // flat path, over both GL and SDL_Renderer back-ends
             }

@@ -7,9 +7,17 @@
 <style>
   html, body { margin: 0; height: 100%; background: #000; color: #c8c8c8;
                font: 14px/1.4 "Courier New", monospace; overflow: hidden; }
-  #frame { position: fixed; inset: 0; display: flex;
-           align-items: center; justify-content: center; }
-  canvas { background: #000; display: block; max-width: 100%; max-height: 100%;
+  #frame { position: fixed; inset: 0; }
+  /* The canvas needs an explicit CSS size, not just max-* caps. SDL3's Emscripten
+     backend works out the window size by setting the canvas to 1x1 and measuring its
+     CSS box (SDL_emscriptenvideo.c, Emscripten_CreateWindow): a result other than 1x1
+     means "CSS owns the size", and SDL adopts whatever it measured as the window size.
+     A canvas sized only by its content collapses under that probe, and SDL then sizes
+     the drawing buffer to the collapsed value -- the game renders correctly into a
+     buffer with no pixels in it. Filling the frame is also the presentation we want:
+     SDL_SetRenderLogicalPresentation letterboxes the 4:3 picture inside whatever it
+     gets, exactly as the desktop build does. */
+  canvas { background: #000; display: block; width: 100%; height: 100%;
            image-rendering: pixelated; outline: none; }
   #gate { position: fixed; inset: 0; z-index: 2; display: flex; gap: 1.5rem;
           flex-direction: column; align-items: center; justify-content: center;

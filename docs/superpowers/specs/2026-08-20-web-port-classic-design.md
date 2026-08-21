@@ -34,15 +34,41 @@ Five things genuinely have to change; everything else does compile as-is:
 5. Audio may not start before a user gesture, and the SDL3 audio callback
    interacts badly with Asyncify (see "Audio" below).
 
-### Why stage 2 is small (recorded here so it is not re-litigated later)
+### What stage 2 has to do (recorded here so it is not re-litigated later)
 
-An audit of `src/platform_gl3/` found the port uses exactly **16 GL entry
-points**, all present in WebGL2/GLES 3.0, and only two texture formats
-(`GL_RGBA8`, `GL_R8`/`GL_RED`), both WebGL2-supported. There are no geometry or
-compute shaders, no buffer mapping, and no threads anywhere in the project
-(`std::thread` appears zero times). Stage 2 is therefore: request an ES context
-instead of GL 3.3 core, and port five shaders from `#version 330 core` to
-`#version 300 es` plus precision qualifiers.
+The port's GL surface is **55 entry points**: 16 called directly as `gl*()` in
+`src/platform_gl3/*.cpp` (GL 1.1, exported by `opengl32.dll`), plus 39 loaded
+through the `BUMPY_GL33_FUNCS` X-macro in `src/platform_gl3/gl33.h`. The 39 are
+spelled `X(PFNGLCREATESHADERPROC, CreateShader)` and so do not show up in a grep
+for `gl[A-Z]` — an earlier revision of this section counted only the 16 and put
+the surface at 16. Count both lists.
+
+The conclusion is unchanged, and holds for the corrected number: all 55 are core
+GLES 3.0. The 39 are ES 2.0 functions except the three VAO entry points
+(`GenVertexArrays`, `BindVertexArray`, `DeleteVertexArrays`), which ES 3.0
+promoted to core; the 16 are all ES 2.0. Only two texture formats are used
+(`GL_RGBA8`, `GL_R8`/`GL_RED`), both ES 3.0 sized formats, and the only
+`glPixelStorei` parameters are `GL_UNPACK_ALIGNMENT`/`GL_PACK_ALIGNMENT`, which
+ES 2.0 already has. There are no geometry or compute shaders, no buffer mapping,
+and no threads anywhere in the project (`std::thread` appears zero times).
+
+Stage 2 therefore covers four things, not one:
+
+1. **Context.** Request an ES context instead of GL 3.3 core.
+2. **Shaders.** Port the seven GLSL sources from `#version 330 core` to
+   `#version 300 es` plus precision qualifiers: the five files in `shaders3d/`
+   (`scene.vert`, `wall.frag`, `sprite.frag`, `shadow.frag`, `bloom.frag`) and
+   the two inline in `src/platform_gl3/gl_presenter.cpp`. `SceneRenderer` reads
+   `shaders3d/` off the filesystem, so those five also have to join the
+   `--preload-file` set in `CMakeLists.txt`.
+3. **Loader headers.** `gl33.h` includes `<SDL3/SDL_opengl.h>` and
+   `<SDL3/SDL_opengl_glext.h>` and its X-macro is written against the
+   `PFNGL*PROC` typedef family, which the GLES 3 headers do not define.
+   `gl33.h`/`gl33.cpp` need a parallel path for the web build. This is loader
+   work, not a shader port, and it was hidden by the undercount above.
+4. **Loader linkage.** `load_gl33` resolves every pointer through
+   `SDL_GL_GetProcAddress`, which under Emscripten needs
+   `-sGL_ENABLE_GET_PROC_ADDRESS` at link time.
 
 ## Goals
 

@@ -74,8 +74,11 @@ only a platform adapter.
   for WebAssembly with Emscripten and runs from a static URL, reusing the
   `SDL_Renderer` fallback path (no GL compiled). Assets are baked into the
   build; settings persist to `localStorage`; 4:3 only. Stage 2 — a WebGL2
-  context plus the five shaders ported to GLES 3.00, which would restore the
-  3D diorama (`Alt+3`) — is not started; it would also extend to HD (`Alt+H`)
+  context, the GL 3.3 loader (`gl33.h`) given a GLES-headers path and
+  `-sGL_ENABLE_GET_PROC_ADDRESS`, and the seven GLSL sources ported to
+  GLES 3.00, which would restore the 3D diorama (`Alt+3`) — is not started;
+  the port's GL surface is 55 entry points, all core GLES 3.0 (see the spec's
+  "What stage 2 has to do"); it would also extend to HD (`Alt+H`)
   if the separate, currently-unmerged `feat/hd-render-mode` branch is ever
   merged into desktop first. Verified: the desktop build + full Catch2 suite
   are unaffected and the web build itself compiles and runs from a static

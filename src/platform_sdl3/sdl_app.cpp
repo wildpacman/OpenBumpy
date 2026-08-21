@@ -666,7 +666,14 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                 }
 #endif
                 break;
-#ifndef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
+            case SettingsEvent::toggle_aspect:
+                // Unreachable: the web build's overlay has no ASPECT row, so SettingsOverlay
+                // never emits this. The case exists to keep the switch exhaustive (clang, and
+                // therefore emcc, enables -Wswitch by default), and stays a no-op deliberately
+                // -- honouring it would toggle square_pixels and break the 4:3-only guarantee.
+                break;
+#else
             case SettingsEvent::toggle_aspect:
                 square_pixels = !square_pixels;
                 apply_aspect();

@@ -205,6 +205,13 @@ context + ported shaders" at these same points.
 `Alt+Enter` keeps working: `SDL_SetWindowFullscreen` maps to canvas fullscreen
 under Emscripten, and a keypress is a valid user gesture.
 
+The persisted `fullscreen` flag is **not** applied at startup in the web build.
+It defaults to `true`, so a first-time visitor with no `localStorage` entry would
+have the page take over their screen unasked — hostile, and unreliable anyway
+since a fullscreen request outside a user gesture is refused. Unlike
+`square_pixels`, the flag itself is left alone rather than forced `false`:
+`Alt+Enter` and the overlay's FULLSCREEN row still toggle and persist it.
+
 ### Assets and configuration
 
 All 47 original data files (586 KB total) are preloaded into `/assets`. The
@@ -251,6 +258,14 @@ canvas keyboard focus. Arrow keys, space, and Tab are `preventDefault`-ed so the
 page does not scroll and Tab does not move focus off the canvas — Tab is the
 settings-overlay key.
 
+The gate doubles as the sign-off. Quitting (the overlay's QUIT row, or Escape
+from the menu) ends the run loop and returns from `main()`; with `EXIT_RUNTIME=0`
+the page survives, so without this the player is left on a dead canvas with no
+message. `main()` notifies the shell through an `EM_JS` hook and the gate
+reappears reading **THANKS FOR PLAYING / CLICK TO RESTART**. That click calls
+`location.reload()`, not a second `Module.callMain([])`: re-entering `main()`
+after `SDL_Quit()` is untested, and settings survive a reload anyway.
+
 ### Build
 
 `CMakeLists.txt` gains `if(EMSCRIPTEN)` branches rather than a second file:
@@ -285,9 +300,11 @@ cover the changed shared code.
 6. Password screen accepts a world code and enters that world.
 7. High scores: name entry and the table.
 8. Settings persist across a page reload (`localStorage`).
-9. `Alt+Enter` fullscreen.
+9. `Alt+Enter` fullscreen — and the page does **not** go fullscreen on load.
 10. All nine worlds load (asset preload covers every `MONDE*.VEC`/`D*.BUM`).
-11. **Frame-pacing measurement** against the 2 % gate above.
+11. QUIT (overlay row, or Escape from the menu) shows the sign-off gate; a
+    click reloads into a fresh game.
+12. **Frame-pacing measurement** against the 2 % gate above.
 
 ## Files touched
 
@@ -299,8 +316,8 @@ cover the changed shared code.
 | `tests/cpp/sha256_test.cpp` | **new** — FIPS-180-4 vectors |
 | `src/core/asset_manifest.cpp` | BCrypt → portable SHA-256 |
 | `src/core/port_config.cpp` | `localStorage` branch under `__EMSCRIPTEN__` |
-| `src/app/main.cpp` | fixed `/assets` root; cfg path under Emscripten |
-| `src/platform_sdl3/sdl_app.cpp` | GL guards; forced 4:3; Asyncify yield; audio pump |
+| `src/app/main.cpp` | fixed `/assets` root; cfg path under Emscripten; exit notice to the shell |
+| `src/platform_sdl3/sdl_app.cpp` | GL guards; forced 4:3; no startup fullscreen; Asyncify yield; audio pump |
 | `src/platform_sdl3/sdl_audio.{h,cpp}` | push-mode stream under Emscripten |
 | `src/game/settings_overlay.cpp` | ASPECT row removed in web build |
 | `src/video/settings_renderer.cpp` | ASPECT row removed in web build |

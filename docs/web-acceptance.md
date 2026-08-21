@@ -33,6 +33,12 @@ set got staged).
       should hold — but it has never actually been clicked)*
 - [ ] Arrow keys and space do **not** scroll the page
 - [ ] **Tab opens the in-game settings overlay** rather than moving browser focus
+- [ ] The page does **not** go fullscreen by itself. `PortConfig::fullscreen`
+      defaults to `true`, but the web build deliberately does not apply it at
+      startup — a page seizing the screen before being asked is hostile, and the
+      request would be refused outside a user gesture anyway. Worth testing with
+      a cleared `localStorage` (`localStorage.removeItem('bumpy_port_cfg')`),
+      since that is what a first-time visitor gets
 
 ## 3. Display — carried (Task 5, half-verified)
 
@@ -73,6 +79,14 @@ the main stack unwound is a corruption hazard. The buffer targets ~100 ms.
 - [ ] **Listen for at least 30 seconds** for dropouts or crackle. If it breaks
       up, the buffer target is the knob: `kSampleRate / 10` → `/ 5` in
       `src/platform_sdl3/sdl_audio.cpp` doubles it to 200 ms.
+- [ ] **Music survives an open overlay.** On the splash screen, open Tab and
+      leave it open for ~15 seconds: the music must keep playing. The pump used
+      to sit at the bottom of the loop body, which the overlay path skips, so
+      the queue emptied and stayed empty for as long as the overlay was up
+- [ ] **Music survives a screen change.** Enter a board from the world map and
+      listen across the edge-to-centre darken: no gap or click. That darken is
+      ~285 ms of loop time against a 100 ms queue, and it too used to skip the
+      pump
 
 ## 6. The game
 
@@ -85,6 +99,11 @@ the main stack unwound is a corruption hazard. The buffer targets ~100 ms.
 - [ ] **All nine worlds load** — enter each via its password (Tab → PASSWORDS
       lists the codes for worlds 2-9)
 - [ ] `Alt+Enter` enters and leaves fullscreen
+- [ ] **Quitting signs off instead of dying.** Tab → QUIT (and separately,
+      Escape from the menu) must bring back the gate reading **THANKS FOR
+      PLAYING / CLICK TO RESTART**. Clicking it reloads into a fresh game with
+      settings intact. Before this, the run loop simply ended and left a frozen
+      canvas with no message and no way back but a manual reload
 - [ ] The tab stays responsive throughout; no errors in the console
 
 ## 7. Frame pacing in a level — carried, and the one I promised not to hand-wave

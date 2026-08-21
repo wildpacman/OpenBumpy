@@ -16,7 +16,7 @@
 EM_JS(int, bumpy_cfg_read, (char* out, int capacity), {
     var text;
     try {
-        text = localStorage.getItem('bumpy_port_cfg');
+        text = localStorage.getItem("bumpy_port_cfg");
     } catch (e) {
         return -1;  // storage disabled (private mode, blocked cookies) -> use defaults
     }
@@ -30,16 +30,19 @@ EM_JS(int, bumpy_cfg_read, (char* out, int capacity), {
     return text.length;
 });
 
-EM_JS(void, bumpy_cfg_write, (const char* text, int length), {
-    var s = '';
+// Returns 1 on a successful localStorage.setItem, 0 otherwise (quota exceeded, storage
+// disabled) so save_port_config can report failure the same way the desktop file write does.
+EM_JS(int, bumpy_cfg_write, (const char* text, int length), {
+    var s = "";
     for (var i = 0; i < length; ++i) {
         s += String.fromCharCode(HEAPU8[text + i]);
     }
     try {
-        localStorage.setItem('bumpy_port_cfg', s);
+        localStorage.setItem("bumpy_port_cfg", s);
     } catch (e) {
-        // Storage full or disabled: settings just do not survive the reload.
+        return 0;  // storage full or disabled: settings just do not survive the reload
     }
+    return 1;
 });
 #endif
 
@@ -134,8 +137,7 @@ bool save_port_config(const std::filesystem::path& path, const PortConfig& confi
     (void)path;
     try {
         const std::string text = serialize_port_config(config);
-        bumpy_cfg_write(text.c_str(), static_cast<int>(text.size()));
-        return true;
+        return bumpy_cfg_write(text.c_str(), static_cast<int>(text.size())) != 0;
     } catch (...) {
         return false;
     }

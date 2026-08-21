@@ -1,9 +1,11 @@
 # Bumpy Port — Project Status
 
-Source of truth for new sessions. Last updated: 2026-07-08 (**3D render mode
-implemented** — an optional OpenGL 3.3 diorama presentation of the in-level
-playfield, toggled by Alt+3 / `--render3d` / `bumpy_port.cfg`; see "3D render
-mode" below. Prior: audio / sound system implemented).
+Source of truth for new sessions. Last updated: 2026-08-21 (**web port
+(browser), stage 1 implemented** — the classic flat presentation builds for
+WebAssembly with Emscripten and runs from a static URL, reusing the existing
+`SDL_Renderer` fallback path; see the Roadmap entry below and
+`docs/superpowers/specs/2026-08-20-web-port-classic-design.md`. Prior: 3D
+render mode implemented).
 
 ## Goal
 
@@ -36,6 +38,8 @@ only a platform adapter.
 - `audio` — music, instrument bank, effects.
 - `video3d` — CPU-side 3D diorama scene model (wall/slab/billboard geometry, blur).
 - `platform_gl3` — OpenGL 3.3 core presenter + the diorama's GL programs/textures.
+  Desktop-only: excluded from the web build, which falls back to the
+  `SDL_Renderer` path (see the web-port Roadmap entry below).
 - `platform_sdl3` — window, input, timing, presentation.
 
 ## Roadmap
@@ -66,6 +70,13 @@ only a platform adapter.
   (dark blue), not the brown MONDE map palette. Physics, collision, win/loss and
   the map's score/lives HUD are all implemented. The sprite-frame decoder from
   Stage 2 is the reusable foundation for gameplay sprites.
+- **Web port (browser), stage 1 — DONE.** The classic flat presentation builds
+  for WebAssembly with Emscripten and runs from a static URL, reusing the
+  `SDL_Renderer` fallback path (no GL compiled). Assets are baked into the
+  build; settings persist to `localStorage`; 4:3 only. Stage 2 — a WebGL2
+  context plus the five shaders ported to GLES 3.00, which brings back
+  `Alt+3` and `Alt+H` — is not started. See
+  `docs/superpowers/specs/2026-08-20-web-port-classic-design.md`.
 
 ## Current state
 

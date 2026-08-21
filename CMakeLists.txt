@@ -88,14 +88,17 @@ target_link_libraries(bumpy_platform_sdl3 PUBLIC bumpy_core SDL3::SDL3)
 if(BUMPY_PACE_PROBE)
   target_compile_definitions(bumpy_platform_sdl3 PRIVATE BUMPY_PACE_PROBE)
 endif()
-# Stage 1 of the web port is flat-only: no GL is compiled for Emscripten. Stage 2
-# (WebGL2 + GLES 3.00 shaders) reopens this branch.
+# The GL layer builds for both platforms: desktop links opengl32 for the GL 1.1
+# entry points, while Emscripten resolves everything through WebGL2 and needs no
+# library. The sources themselves are identical -- they compile under emcc unchanged,
+# because the port includes SDL's self-contained SDL_opengl_glext.h rather than the
+# system GLES headers that lack the PFNGL*PROC typedefs.
+target_sources(bumpy_platform_sdl3 PRIVATE
+  src/platform_gl3/gl33.cpp
+  src/platform_gl3/gl_util.cpp
+  src/platform_gl3/gl_presenter.cpp
+  src/platform_gl3/scene_renderer.cpp)
 if(NOT EMSCRIPTEN)
-  target_sources(bumpy_platform_sdl3 PRIVATE
-    src/platform_gl3/gl33.cpp
-    src/platform_gl3/gl_util.cpp
-    src/platform_gl3/gl_presenter.cpp
-    src/platform_gl3/scene_renderer.cpp)
   target_link_libraries(bumpy_platform_sdl3 PUBLIC opengl32)
 endif()
 
@@ -208,6 +211,24 @@ if(EMSCRIPTEN)
   add_custom_target(bumpy_web_assets DEPENDS ${BUMPY_WEB_STAGED})
   add_dependencies(bumpy_port bumpy_web_assets)
 
+  # The diorama reads its GLSL at runtime, so the shaders ship in the asset image.
+  # /assets/shaders3d is exactly where shader_dir() looks once SDL_GetBasePath()
+  # yields nothing usable, which is the case in a browser.
+  set(BUMPY_WEB_SHADERS scene.vert wall.frag sprite.frag shadow.frag bloom.frag)
+  set(BUMPY_WEB_SHADERS_STAGED "")
+  foreach(shader IN LISTS BUMPY_WEB_SHADERS)
+    add_custom_command(
+      OUTPUT ${BUMPY_WEB_STAGE}/shaders3d/${shader}
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${CMAKE_SOURCE_DIR}/shaders3d/${shader}
+              ${BUMPY_WEB_STAGE}/shaders3d/${shader}
+      DEPENDS ${CMAKE_SOURCE_DIR}/shaders3d/${shader}
+      COMMENT "staging web shader ${shader}")
+    list(APPEND BUMPY_WEB_SHADERS_STAGED ${BUMPY_WEB_STAGE}/shaders3d/${shader})
+  endforeach()
+  add_custom_target(bumpy_web_shaders DEPENDS ${BUMPY_WEB_SHADERS_STAGED})
+  add_dependencies(bumpy_port bumpy_web_shaders)
+
   set_target_properties(bumpy_port PROPERTIES OUTPUT_NAME bumpy SUFFIX ".html")
   target_link_options(bumpy_port PRIVATE
     # The run loop still blocks; Asyncify is what turns emscripten_sleep into a real
@@ -219,6 +240,12 @@ if(EMSCRIPTEN)
     # opens inside a user gesture.
     -sINVOKE_RUN=0
     -sEXPORTED_RUNTIME_METHODS=callMain
+    # WebGL2 is GLES 3.0; without this Emscripten creates a WebGL1 context and every
+    # GLES 3.0 entry point fails at runtime rather than at link time.
+    -sMAX_WEBGL_VERSION=2
+    # load_gl33 resolves all 39 post-1.1 entry points through SDL_GL_GetProcAddress,
+    # which routes to emscripten_webgl_get_proc_address and is compiled out without this.
+    -sGL_ENABLE_GET_PROC_ADDRESS
     --preload-file ${BUMPY_WEB_STAGE}@/assets
     --shell-file ${CMAKE_SOURCE_DIR}/src/web/shell.html)
   set_property(TARGET bumpy_port APPEND PROPERTY LINK_DEPENDS

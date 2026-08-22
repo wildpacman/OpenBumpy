@@ -270,6 +270,13 @@ if(EMSCRIPTEN)
     -sGL_ENABLE_GET_PROC_ADDRESS
     --preload-file ${BUMPY_WEB_STAGE}@/assets
     --shell-file ${CMAKE_SOURCE_DIR}/src/web/shell.html)
+  # The staged assets and shaders are inputs to the link (--preload-file bakes them
+  # into bumpy.data), but nothing else tells the link so: a shader-only or asset-only
+  # edit restages the file and stops, leaving a stale bumpy.data shipped. That bites
+  # shaders hardest, since those are the files people hand-edit -- there is an Alt+R
+  # hot-reload hotkey for exactly that.
   set_property(TARGET bumpy_port APPEND PROPERTY LINK_DEPENDS
-    ${CMAKE_SOURCE_DIR}/src/web/shell.html)
+    ${CMAKE_SOURCE_DIR}/src/web/shell.html
+    ${BUMPY_WEB_STAGED}
+    ${BUMPY_WEB_SHADERS_STAGED})
 endif()

@@ -36,9 +36,10 @@ only a platform adapter.
 - `video` — palette and frame composition over an indexed 320×200 buffer.
 - `audio` — music, instrument bank, effects.
 - `video3d` — CPU-side 3D diorama scene model (wall/slab/billboard geometry, blur).
-- `platform_gl3` — OpenGL 3.3 core presenter + the diorama's GL programs/textures.
-  Desktop-only: excluded from the web build, which falls back to the
-  `SDL_Renderer` path (see the web-port Roadmap entry below).
+- `platform_gl3` — the GL presenter + the diorama's GL programs/textures,
+  built for both platforms: OpenGL 3.3 core on desktop, GLES 3.0 through
+  WebGL2 in the browser. `SDL_Renderer` is the fallback when no usable GL
+  context exists on either platform (see the web-port Roadmap entry below).
 - `platform_sdl3` — window, input, timing, presentation.
 
 ## Roadmap
@@ -73,12 +74,13 @@ only a platform adapter.
   for WebAssembly with Emscripten and runs from a static URL, reusing the
   `SDL_Renderer` fallback path (no GL compiled). Assets are baked into the
   build; settings persist to `localStorage`; 4:3 only. Stage 2 — a WebGL2
-  context, the GL 3.3 loader (`gl33.h`) given a GLES-headers path and
-  `-sGL_ENABLE_GET_PROC_ADDRESS`, and the seven GLSL sources ported to
-  GLES 3.00, which would restore the 3D diorama (`Alt+3`) — is now done (see
-  the entry below); the port's GL surface is 55 entry points, all core
-  GLES 3.0 (see the spec's "What stage 2 has to do"); it would also extend to
-  HD (`Alt+H`)
+  context, `-sGL_ENABLE_GET_PROC_ADDRESS`, and the seven GLSL sources ported
+  to GLES 3.00, which would restore the 3D diorama (`Alt+3`) — is now done
+  (see the entry below); the port's GL surface is 55 distinct functions in
+  total, all core GLES 3.0: 39 loaded per-context through
+  `SDL_GL_GetProcAddress` (the `BUMPY_GL33_FUNCS` X-macro in `gl33.h`) plus
+  16 GL 1.1 entry points called directly (see the spec's "What stage 2 has to
+  do"); it would also extend to HD (`Alt+H`)
   if the separate, currently-unmerged `feat/hd-render-mode` branch is ever
   merged into desktop first. Verified: the desktop build + full Catch2 suite
   are unaffected and the web build itself compiles and runs from a static

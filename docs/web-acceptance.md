@@ -238,6 +238,70 @@ decision for the owner to make. It is not one; the option does not exist here.)
 
 ---
 
+---
+
+## 9. Open right now — the fullscreen viewport fix, unverified
+
+**Status: root cause found and fixed in `27c6177`; the fix has never been seen
+working in a browser.** This is the one thing to do first in a new session.
+
+### What was wrong
+
+In fullscreen the picture sat in the bottom-left at 80% size. Measured, not guessed:
+
+```
+sdl 1646x1029 | px 1646x1029 | canvas 2058x1286 | screen 1646x1029 | sdlfs 1
+```
+
+SDL believed the window was 1646x1029 while the canvas backing store was
+2058x1286. `glViewport` was sized from SDL's number, so it covered 80% of each
+axis of the framebuffer, and GL's bottom-left origin is why the picture went
+*down and left* rather than merely small.
+
+SDL3's Emscripten backend sets the window size on fullscreen entry from
+`emscripten_get_element_css_size` — the canvas's CSS *inline style*, which the
+fullscreen strategy fills in from `screen.width/height`. Those ignore page zoom;
+the backing store follows the zoomed layout viewport. At 80% browser zoom they
+differ by exactly 1.25x.
+
+### Why it looked like a ghost
+
+Opening DevTools made it disappear. A DevTools window triggers a UI resize, and
+`Emscripten_HandleResize` takes a *different* source for fullscreen windows —
+`uiEvent->windowInnerWidth`, which is correct — so the act of observing the bug
+repaired it. Two earlier attempts at this bug were derailed by that: the first
+concluded "docked DevTools was shrinking the viewport, no defect", which was
+wrong.
+
+### How to verify the fix
+
+The diagnostic in `6b91283` writes to a `localStorage` ring, precisely so the
+evidence survives a reproduction made with DevTools closed.
+
+1. Rebuild and serve, hard-reload the page, click to start.
+2. In the console: `localStorage.removeItem('bumpy_diag')`
+3. **Close DevTools completely.** Enter fullscreen, stay a few seconds, exit.
+   Repeat twice.
+4. Reopen the console: `console.log(localStorage.getItem('bumpy_diag'))`
+
+**Pass criterion:** in lines with `sdlfs 1`, the `draw` field matches `canvas`
+(both 2058x1286 on the machine where this was found). `px` will still read
+1646x1029 — SDL still computes it wrongly, and that divergence in the same line
+is the proof the fix is doing its job rather than the bug having wandered off.
+
+By eye: the picture fills the screen with no offset.
+
+### When it passes
+
+`git revert 6b91283` to remove the diagnostic. Leave `27c6177`.
+
+### If it fails
+
+The numbers in the ring say which hypothesis died. `draw` == `px` and both wrong
+means the canvas query is returning SDL's number after all; `draw` == `canvas`
+but the picture still offset means the viewport is not the thing displacing it,
+and the next place to look is `scene_frustum` in `src/video3d/`.
+
 ## What was verified without you
 
 So you know where the floor is, independent of everything above:

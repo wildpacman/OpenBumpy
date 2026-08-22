@@ -73,18 +73,25 @@ mode, not the bar orientation you'll actually see). What was never checked:
 Worth a moment: this is the only state the web build persists. High scores are
 session-only, in the browser and on desktop alike, exactly as the original was.
 
-## 5. Audio — carried (Task 8, never heard by anyone)
+## 5. Audio — heard and working (2026-08-22); the stress checks below are still open
 
 The web build pushes samples from the run loop instead of using SDL's audio
 callback, because a JS-driven callback re-entering the mixer while Asyncify has
-the main stack unwound is a corruption hazard. The buffer targets ~100 ms.
+the main stack unwound is a corruption hazard.
+
+**The queue depth is a latency floor, not a comfort setting** — see section 10.
+It was 100 ms and SFX audibly trailed the picture; it is now **60 ms**, set by
+listening. Below 60 the queue runs dry and crackles.
 
 - [ ] Intro music plays on the splash screen and stops when you leave it
 - [ ] SFX fire on bumps and springs
 - [ ] Tab → AUDIO toggles for MUSIC and SOUND both take effect immediately
-- [ ] **Listen for at least 30 seconds** for dropouts or crackle. If it breaks
-      up, the buffer target is the knob: `kSampleRate / 10` → `/ 5` in
-      `src/platform_sdl3/sdl_audio.cpp` doubles it to 200 ms.
+- [ ] **Listen for at least 30 seconds** for dropouts or crackle, and especially
+      across a world change, which is the longest stretch of loop time that could
+      outrun the queue. If it breaks up, **do not raise the target** — that trades
+      the lag straight back. Call `pump()` again after each wake inside the yield
+      loop in `src/platform_sdl3/sdl_app.cpp` instead: it halves the longest
+      unfed gap and costs no latency at all.
 - [ ] **Music survives an open overlay.** On the splash screen, open Tab and
       leave it open for ~15 seconds: the music must keep playing. The pump used
       to sit at the bottom of the loop body, which the overlay path skips, so
@@ -120,45 +127,47 @@ the main stack unwound is a corruption hazard. The buffer targets ~100 ms.
       canvas with no message and no way back but a manual reload
 - [ ] The tab stays responsive throughout; no errors in the console
 
-## 7. Frame pacing in a level — carried, and the one I promised not to hand-wave
+## 7. Frame pacing in a level — measured 2026-08-22, and it is fine
 
-Measured pacing on the **splash screen** came out at 70.0866 Hz in the browser
-against 70.086 Hz on desktop — a 0.0008 % difference against a 2 % gate. But the
-splash is a cheap frame. The browser spent 0.375 of each period working where
-desktop spent 0.026, roughly fourteen times the share.
-
-I have an argument for why that should not grow on a busy in-level frame — most
-of the gap is per-yield Asyncify overhead, which is fixed per tick rather than
-proportional to frame cost. **That is reasoning, not a measurement.** So:
+Splash-screen pacing had measured 70.0866 Hz in the browser against 70.086 Hz on
+desktop, but the splash is a cheap frame, and the browser spent 0.375 of each
+period working where desktop spent 0.026. Whether that held up on a busy in-level
+frame was the open question. It does. Measured **in a level on EASY**:
 
 ```
-cmake --preset web-release -DBUMPY_PACE_PROBE=ON
-cmake --build --preset web-release
-python -m http.server 8000 --directory build/web-release
+pace 35.04 Hz achieved / 35.04 asked | busy 0.20 | worst tick 34.0 ms | late 0 of 140
 ```
 
-Open the page, start a game on **HARD**, and play (or just hold a direction) for
-a minute with the tab **in the foreground** — a backgrounded tab is timer-
-throttled and the numbers become meaningless. Watch the browser console for:
+- `achieved` equals `asked` to the reported precision — the game is **not** running
+  slow. EASY is 2 retraces per step, 35.043 Hz, the same number the desktop build
+  paces to from the same code.
+- `busy 0.20` — a fifth of each period spent working. Ample headroom.
+- **`late 0 of 140`** is the decisive one: not a single tick arrived past its own
+  deadline, so the loop never hit the `next_frame = now` branch that abandons the
+  deficit instead of catching up. That branch is the only way this design can
+  drift slow, and it never fired.
+- `worst tick 34.0 ms` against a 28.5 ms nominal period: real jitter, ~19% on the
+  worst tick in 140. It does not accumulate — the deadlines are absolute, so a
+  late tick is followed by a short one. This is the number to watch if motion
+  ever looks uneven, and it is unrelated to the rate.
 
-```
-[pace] 300 waits in ... ms -> ... Hz achieved, ... Hz requested, busy ...
-```
+Still inferred rather than measured: **HARD**, which ticks at 70.086 Hz, halving
+the budget. `busy` should land near 0.4 there (it was 0.375 on the splash at the
+same rate), which is still comfortable — but nobody has run it.
 
-- [ ] `achieved` stays near 70.086 Hz (HARD = one VGA retrace)
-- [ ] **`busy` stays below 1.0** — at or above 1.0 means the frame work no
-      longer fits the tick budget and the rate is limited by the work rather
-      than by the waiting mechanism
+- [ ] Play a level on **HARD** and confirm `busy` stays below 1.0
 
-If `busy` on a level frame lands anywhere near 1.0, tell me: the fallback the
-spec holds in reserve is a `requestAnimationFrame`-driven yield with catch-up
-ticks, and that is a real design change rather than a tweak.
+Reinstate the panel from `95c3a66` to measure it; `-DBUMPY_PACE_PROBE=ON` prints
+the same pace numbers to the console instead. A backgrounded tab is timer-
+throttled and its numbers are meaningless, so keep it in the foreground.
 
-Remember to rebuild with `-DBUMPY_PACE_PROBE=OFF` afterwards.
+If `busy` on a HARD level frame ever lands near 1.0, the fallback the spec holds
+in reserve is a `requestAnimationFrame`-driven yield with catch-up ticks — a real
+design change rather than a tweak.
 
 ---
 
-## 8. The diorama — carried (stage 2, never seen in a browser)
+## 8. The diorama — seen in a browser and working (2026-08-22); details below still open
 
 The whole point of stage 2, and the part no build can check: whether it looks
 right. Compare against the desktop build running the same board side by side.
@@ -332,6 +341,39 @@ Two loose ends, recorded rather than chased, because neither changes anything no
   machinery. It is not needed here: the loop handles the keypress well inside the
   browser's transient activation window, which is the same thing the SDL path
   relied on. Worth remembering if a browser ever tightens that.
+
+---
+
+## 10. Audio latency — where the third of a second went
+
+Reported from a browser session: SFX trailed the picture by roughly a third of a
+second, which the desktop build does not do. Measured rather than argued:
+
+| term | ms | ours? |
+|---|---|---|
+| queue of already-rendered audio (`pump()` target) | 100 | **yes** |
+| `AudioContext.baseLatency` | 10 | no |
+| `AudioContext.outputLatency` (device) | 40 | no |
+
+The queue is the part that matters and the part desktop does not have. `pump()`
+renders *ahead* of the device, so an effect triggered this frame is mixed behind
+everything already queued and cannot play until that drains. Desktop's callback
+pulls just in time and has no such floor — which is the whole reason one sounded
+late and the other did not.
+
+Set by listening, not by arithmetic: at 100 ms the lag was obvious, at **60 ms it
+was gone**, and below 60 the queue began to run dry and crackle. The floor makes
+sense — `pump()` runs once per game tick, so the queue must outlast one tick with
+margin, and a tick is 28.5 ms at the half rate against a worst tick measured at
+34 ms. 35 ms is barely one and a quarter ticks; 60 is a bit over two.
+
+Worth knowing before touching it again: **raising the target trades the lag
+straight back**. If crackle ever appears, call `pump()` again after each wake
+inside the yield loop in `src/platform_sdl3/sdl_app.cpp` — that halves the longest
+unfed gap and costs no latency. And if someone reports far worse lag than the
+50 ms of browser overhead above, ask what they are listening through before
+touching any code: Bluetooth output alone runs 150-300 ms and no change here can
+reach it.
 
 ## What was verified without you
 

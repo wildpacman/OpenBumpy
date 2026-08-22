@@ -51,34 +51,33 @@ SdlAudio::~SdlAudio() {
     }
 }
 
-int SdlAudio::queued_ms() const {
-#ifdef __EMSCRIPTEN__
-    if (stream_) {
-        const int queued = SDL_GetAudioStreamQueued(stream_);
-        if (queued > 0) {
-            return queued / static_cast<int>(sizeof(float)) * 1000 /
-                   static_cast<int>(AudioEngine::kSampleRate);
-        }
-    }
-#endif
-    return 0;
-}
-
-void SdlAudio::set_target_ms(int ms) noexcept {
-    target_ms_ = ms < 10 ? 10 : (ms > 500 ? 500 : ms);
-}
-
 void SdlAudio::pump() {
 #ifdef __EMSCRIPTEN__
     if (!stream_) {
         return;
     }
-    // Hold target_ms_ of audio queued: long enough to ride out browser timer jitter (a
-    // yielded tick can overshoot by several milliseconds), short enough that SFX stay in
-    // step with what is on screen. pump() runs once per game tick, so the queue must
-    // outlast one tick with margin -- 14.3 ms on HARD in a level, 28.5 ms at the half rate.
-    const int target_bytes = static_cast<int>(AudioEngine::kSampleRate) * target_ms_ / 1000 *
-                             static_cast<int>(sizeof(float));
+    // How much already-rendered audio to keep queued. This is not a comfort setting: it
+    // is a floor on how late a sound effect can be. pump() renders ahead of the device, so
+    // an SFX triggered this frame is mixed *behind* everything already queued and cannot
+    // play until the queue drains. Desktop has no equivalent -- SDL's callback pulls just
+    // in time -- which is exactly why the web build sounded late and the desktop one did
+    // not.
+    //
+    // 60 ms, chosen by listening rather than by arithmetic (2026-08-22, EASY, in a level).
+    // At the original 100 ms the lag was obvious; at 60 ms it was gone; below 60 the queue
+    // began to run dry and crackle. The floor makes sense: pump() runs once per game tick,
+    // so the queue has to outlast one tick with margin, and a tick is 28.5 ms at the half
+    // rate (14.3 ms on HARD). 35 ms is barely one and a quarter half-rate ticks -- one late
+    // tick and it underruns. 60 ms is a bit over two, against a worst tick measured at
+    // 34 ms.
+    //
+    // The rest of the latency is the browser's and is not ours to spend: measured at 10 ms
+    // of AudioContext base latency plus 40 ms of device output latency. If crackle ever
+    // does appear, the fix is not a bigger queue -- it is to call pump() again after each
+    // wake inside the yield loop in sdl_app.cpp, which halves the longest unfed gap without
+    // costing a millisecond of latency.
+    constexpr int target_bytes =
+        static_cast<int>(AudioEngine::kSampleRate) * 60 / 1000 * static_cast<int>(sizeof(float));
     const int queued = SDL_GetAudioStreamQueued(stream_);
     if (queued < 0 || queued >= target_bytes) {
         return;

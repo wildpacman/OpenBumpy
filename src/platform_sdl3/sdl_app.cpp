@@ -36,6 +36,78 @@ void require(bool ok) {
     }
 }
 
+#ifdef __EMSCRIPTEN__
+// Fullscreen on the web is the page's business, not SDL's.
+//
+// SDL3's Emscripten backend routes SDL_SetWindowFullscreen through
+// emscripten_request_fullscreen_strategy, and that leaves three different answers to
+// "how big is the screen" live at once:
+//
+//   * the strategy sizes the canvas element and its inline CSS from `screen.width/height`
+//     (SDL_emscriptenvideo.c -> JSEvents_resizeCanvasForFullscreen in libhtml5.js),
+//   * the resize that follows sizes the canvas backing store from `innerWidth/innerHeight`
+//     (Emscripten_HandleResize), and
+//   * SDL_UpdateFullscreenMode then sets the window size from the display mode.
+//
+// `screen.*` is expressed in zoom-independent pixels while the layout viewport follows
+// the page zoom, so at 100% zoom all three agree and nothing looks wrong -- and at any
+// other zoom they diverge by exactly the zoom factor. That is why this bug reads as a
+// ghost: it is invisible at the one zoom level most people never leave, and a DevTools
+// window fires the resize that papers over part of it. Sizing glViewport from the canvas
+// (gl_drawable_size, kept below) corrects the one consumer that read SDL's number; the
+// divergence itself survives, and with it every other consumer.
+//
+// So do not let the strategy run at all. Ask the DOM for fullscreen on the document
+// element: the canvas keeps its stylesheet size (100% of a fixed, inset-0 frame), the
+// browser resizes that frame to the fullscreen viewport, and SDL's ordinary resizable
+// path -- which measures the canvas's bounding client rect, the one number that is true
+// by definition -- carries both the window size and the canvas backing store to it. One
+// source, no zoom term, and the SDL_Renderer fallback path is corrected too. Nothing else
+// depends on SDL's window geometry here: this game reads no mouse.
+bool platform_fullscreen(SDL_Window*) {
+    return MAIN_THREAD_EM_ASM_INT({
+               return (document.fullscreenElement || document.webkitFullscreenElement) ? 1 : 0;
+           }) != 0;
+}
+
+void platform_set_fullscreen(SDL_Window*, bool on) {
+    // requestFullscreen needs the browser's transient user activation, and has it: the
+    // loop handles the keypress a frame or two after the browser dispatched it, well
+    // inside the seconds-long activation window (this is the same constraint the SDL path
+    // met). A rejected promise leaves the page as it was, which is the right outcome.
+    MAIN_THREAD_EM_ASM({
+        var root = document.documentElement;
+        var done;
+        if ($0) {
+            // webkitRequestFullscreen covers Safari before 16.4, which is also what the
+            // Emscripten path this replaces fell back to.
+            if (!document.fullscreenElement) {
+                if (root.requestFullscreen) {
+                    done = root.requestFullscreen();
+                } else if (root.webkitRequestFullscreen) {
+                    root.webkitRequestFullscreen();
+                }
+            }
+        } else if (document.fullscreenElement) {
+            if (document.exitFullscreen) {
+                done = document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+        if (done && done.catch) { done.catch(function () {}); }
+    }, on ? 1 : 0);
+}
+#else
+bool platform_fullscreen(SDL_Window* window) {
+    return (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
+}
+
+void platform_set_fullscreen(SDL_Window* window, bool on) {
+    SDL_SetWindowFullscreen(window, on);
+}
+#endif
+
 void update_key_state(bumpy::MenuInput& input, SDL_Keycode key, bool pressed) {
     switch (key) {
     case SDLK_UP:
@@ -318,7 +390,7 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
     // way square_pixels is above): Alt+Enter and the overlay's FULLSCREEN row still toggle
     // and persist it normally, it simply is not auto-applied on load.
     if (config.fullscreen) {
-        SDL_SetWindowFullscreen(window_, true);
+        platform_set_fullscreen(window_, true);
     }
 #endif
     auto persist = [&]() {
@@ -573,46 +645,68 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
 
     while (running) {
 #ifdef __EMSCRIPTEN__
-        // TEMPORARY DIAGNOSTIC -- remove once the fullscreen offset is understood.
-        // Both sides of the C++/canvas boundary in one line. The GL paths size their
-        // viewport from SDL_GetWindowSizeInPixels, but the window is created without
-        // SDL_WINDOW_HIGH_PIXEL_DENSITY, which pins SDL's pixel_ratio to 1.0 -- so that
-        // call returns the CSS size despite its name. If the canvas's actual drawing
-        // buffer differs, the viewport covers only part of the framebuffer, and GL's
-        // bottom-left origin would put the picture exactly where it is being seen.
+        // TEMPORARY DIAGNOSTIC -- revert once the fullscreen geometry is confirmed.
+        //
+        // Every number the fullscreen picture's position depends on, on both sides of the
+        // C++/canvas boundary, twice a second. `vp` is the decisive one: the rect the last
+        // *flat* present handed to glViewport. If it matches `canvas`, the picture covers
+        // the whole framebuffer; anything smaller lands bottom-left, because that is where
+        // GL's origin is. On a diorama frame (`diorama 1`) `vp` is stale -- that path takes
+        // the whole drawable rather than a letterboxed one, so `draw` *is* its viewport.
+        //
+        // It goes to a localStorage ring as well as the console, because this bug is only
+        // visible with DevTools CLOSED -- opening them to read the log makes it go away.
+        // The ring survives the reproduction, and the page shows it on leaving fullscreen
+        // (src/web/shell.html), so the evidence can be read without DevTools at all.
         {
             static int diag_frame = 0;
+            if (diag_frame == 0) {
+                // A build stamp, so "did the page actually load the rebuilt wasm?" is a
+                // glance rather than an argument. A browser that served a cached bumpy.wasm
+                // reports the old date here and every other number is worthless.
+                MAIN_THREAD_EM_ASM({
+                    try {
+                        localStorage.setItem('bumpy_build', UTF8ToString($0));
+                    } catch (e) {}
+                    console.log('[diag] build ' + UTF8ToString($0));
+                }, __DATE__ " " __TIME__);
+            }
             if (diag_frame++ % 35 == 0) {
-                int lw = 0, lh = 0, pw = 0, ph = 0;
+                int lw = 0, lh = 0, pw = 0, ph = 0, dw = 0, dh = 0;
+                int vx = 0, vy = 0, vw = 0, vh = 0;
                 SDL_GetWindowSize(window_, &lw, &lh);
                 SDL_GetWindowSizeInPixels(window_, &pw, &ph);
-                int dw = 0, dh = 0;
                 gl_drawable_size(window_, &dw, &dh);
-                const int sdl_fs =
-                    (SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN) ? 1 : 0;
-                // Recorded into localStorage as well as the console, because the bug only
-                // appears with DevTools CLOSED -- opening them to read the log makes it go
-                // away. The ring survives the reproduction, so it can be read afterwards.
+                gl_last_flat_viewport(&vx, &vy, &vw, &vh);
+                char line[256];
+                std::snprintf(line, sizeof(line),
+                              "sdl %dx%d | px %dx%d | draw %dx%d | vp %dx%d@%d,%d | "
+                              "sdlfs %d | diorama %d",
+                              lw, lh, pw, ph, dw, dh, vw, vh, vx, vy,
+                              (SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN) ? 1 : 0,
+                              render3d ? 1 : 0);
                 MAIN_THREAD_EM_ASM({
                     try {
                         var c = Module.canvas;
-                        var line = 'sdl ' + $0 + 'x' + $1 + ' | px ' + $2 + 'x' + $3 + ' | draw ' + $6 + 'x' + $7 +
+                        var r = c.getBoundingClientRect();
+                        var line = UTF8ToString($0) +
                                    ' | canvas ' + c.width + 'x' + c.height +
-                                   ' | rect ' + Math.round(c.getBoundingClientRect().width) +
-                                   'x' + Math.round(c.getBoundingClientRect().height) +
+                                   ' | rect ' + Math.round(r.width) + 'x' + Math.round(r.height) +
+                                   ' @' + Math.round(r.left) + ',' + Math.round(r.top) +
+                                   ' | style ' + (c.style.width || '-') + 'x' +
+                                   (c.style.height || '-') +
                                    ' | inner ' + innerWidth + 'x' + innerHeight +
                                    ' | screen ' + screen.width + 'x' + screen.height +
                                    ' | dpr ' + devicePixelRatio +
-                                   ' | domfs ' + (document.fullscreenElement ? 1 : 0) +
-                                   ' | sdlfs ' + $4 + ' | diorama ' + $5;
+                                   ' | domfs ' + (document.fullscreenElement ? 1 : 0);
                         console.log('[diag] ' + line);
                         var prev = localStorage.getItem('bumpy_diag') || String();
                         var lines = prev ? prev.split('\n') : [];
                         lines.push(line);
-                        while (lines.length > 80) { lines.shift(); }
+                        while (lines.length > 60) { lines.shift(); }
                         localStorage.setItem('bumpy_diag', lines.join('\n'));
                     } catch (e) {}
-                }, lw, lh, pw, ph, sdl_fs, render3d ? 1 : 0, dw, dh);
+                }, line);
             }
         }
 #endif
@@ -645,9 +739,8 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                 // so it does not also register as a menu/fire confirm on the same frame.
                 if ((event.key.key == SDLK_RETURN || event.key.key == SDLK_KP_ENTER) &&
                     (event.key.mod & SDL_KMOD_ALT)) {
-                    const bool fullscreen =
-                        (SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN) != 0;
-                    SDL_SetWindowFullscreen(window_, !fullscreen);
+                    const bool fullscreen = platform_fullscreen(window_);
+                    platform_set_fullscreen(window_, !fullscreen);
                     config.fullscreen = !fullscreen;
                     persist();
 #ifndef __EMSCRIPTEN__
@@ -731,8 +824,8 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                 break;
 #endif
             case SettingsEvent::toggle_fullscreen: {
-                const bool fs = (SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN) != 0;
-                SDL_SetWindowFullscreen(window_, !fs);
+                const bool fs = platform_fullscreen(window_);
+                platform_set_fullscreen(window_, !fs);
                 config.fullscreen = !fs;
                 persist();
                 break;
@@ -774,7 +867,7 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                 view.cursor_row = overlay.cursor_row();
                 view.render3d = render3d;
                 view.square_pixels = square_pixels;
-                view.fullscreen = (SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN) != 0;
+                view.fullscreen = platform_fullscreen(window_);
                 view.music = config.music;
                 view.sfx = config.sfx;
                 view.render3d_available = gl_available();

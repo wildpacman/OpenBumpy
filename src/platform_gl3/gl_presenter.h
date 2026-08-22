@@ -25,6 +25,11 @@ namespace bumpy {
 // is where GL's origin is. Ask the canvas directly instead.
 void gl_drawable_size(SDL_Window* window, int* w, int* h);
 
+// TEMPORARY, for the fullscreen diagnostic in src/platform_sdl3/sdl_app.cpp: the
+// glViewport rect the last flat present actually used, as {x, y, w, h}. Reverted with
+// the rest of the instrumentation.
+void gl_last_flat_viewport(int* x, int* y, int* w, int* h);
+
 class GlPresenter {
 public:
     // Creates the GL 3.3 core context on `window` (created with SDL_WINDOW_OPENGL

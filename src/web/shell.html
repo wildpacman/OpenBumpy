@@ -27,6 +27,13 @@
   #gate p  { margin: 0; letter-spacing: .2em; }
   #bar  { width: 240px; height: 6px; border: 1px solid #444; }
   #fill { height: 100%; width: 0; background: #e0c060; transition: width .2s; }
+  /* TEMPORARY, with the fullscreen diagnostic in src/platform_sdl3/sdl_app.cpp. The bug
+     it chases is only visible with DevTools closed, so the evidence has to be readable
+     without them: this panel prints the recorded ring straight onto the page. */
+  #diag { position: fixed; z-index: 3; inset: 0 0 auto 0; max-height: 45vh; margin: 0;
+          overflow: auto; padding: .75rem 1rem; background: rgba(0,0,0,.88);
+          border-bottom: 1px solid #444; font-size: 11px; line-height: 1.35;
+          white-space: pre; color: #9fe09f; user-select: text; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -38,6 +45,7 @@
   <div id="bar"><div id="fill"></div></div>
   <p id="hint" hidden>CLICK TO RESTART</p>
 </div>
+<pre id="diag" hidden></pre>
 <script>
 var canvas = document.getElementById('canvas');
 var gate = document.getElementById('gate');
@@ -54,6 +62,44 @@ var swallowed = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab'];
 window.addEventListener('keydown', function (e) {
   if (swallowed.indexOf(e.key) !== -1) { e.preventDefault(); }
 }, true);
+
+// Fullscreen is requested on the document element from C++ (platform_set_fullscreen in
+// src/platform_sdl3/sdl_app.cpp), which leaves the canvas sized by this page's CSS -- 100%
+// of a fixed, inset-0 frame -- rather than by SDL's Emscripten fullscreen strategy, whose
+// idea of the screen ignores page zoom. SDL re-measures the canvas on a window resize
+// event and nothing else, and entering or leaving fullscreen does fire one, but not
+// dependably after the new layout has settled. Nudge it once more on the next frame so the
+// drawing buffer cannot be left a frame behind the box it is drawn into. SDL's handler
+// only re-reads sizes, so a repeat is free.
+document.addEventListener('fullscreenchange', function () {
+  requestAnimationFrame(function () { window.dispatchEvent(new Event('resize')); });
+});
+
+// TEMPORARY, with the fullscreen diagnostic. The bug only reproduces with DevTools
+// closed, which is exactly why it was so hard to hand over: reading the log repaired it.
+// So show the ring on the page instead -- automatically on leaving fullscreen, and on F9
+// at any time. Click it to copy. Reverted together with the C++ half.
+var diag = document.getElementById('diag');
+function showDiag() {
+  var ring, build;
+  try {
+    ring = localStorage.getItem('bumpy_diag');
+    build = localStorage.getItem('bumpy_build');
+  } catch (e) { ring = null; }
+  diag.textContent = 'build ' + (build || '?') + '   (F9 hides this, click to copy)\n\n' +
+                     (ring || 'no samples recorded -- the game has to run at least once');
+  diag.hidden = false;
+}
+document.addEventListener('fullscreenchange', function () {
+  if (!document.fullscreenElement) { showDiag(); }
+});
+window.addEventListener('keydown', function (e) {
+  if (e.key === 'F9') { e.preventDefault(); diag.hidden ? showDiag() : (diag.hidden = true); }
+});
+diag.addEventListener('click', function () {
+  if (navigator.clipboard) { navigator.clipboard.writeText(diag.textContent); }
+  canvas.focus();  // never leave the keyboard parked on the panel
+});
 
 var Module = {
   canvas: canvas,

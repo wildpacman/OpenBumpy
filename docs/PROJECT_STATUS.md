@@ -976,7 +976,7 @@ plan: `docs/superpowers/specs/2026-07-08-3d-render-mode-design.md`,
   and positions are completely untouched by any of this; the flat 320x200
   composition still runs every frame (even in 3D mode) so the screen-change darken
   and the two presentation paths stay trivially in sync.
-- **225 C++ tests pass** (82544 assertions) covering the GL helpers, mat4/blur math,
+- **254 C++ tests pass** (82783 assertions) covering the GL helpers, mat4/blur math,
   scene decomposition (slab-vs-billboard classification, live quad building),
   slab/billboard face geometry, the renderer's shader reload path, and the config
   parser/serializer; originals verify clean. Verified by eye: the parity dump, the

@@ -930,8 +930,9 @@ plan: `docs/superpowers/specs/2026-07-08-3d-render-mode-design.md`,
   x2/x4 integer scales and compares byte-for-byte against the CPU nearest-neighbor
   reference (6/6 PASS, exit 0). **Fallback:** if the window can't get an OpenGL 3.3
   core context, the port silently drops back to the original `SDL_Renderer` path
-  (never fatal); 3D mode is simply unavailable (`Alt+3` logs "3D mode unavailable:
-  no OpenGL 3.3").
+  (never fatal); the diorama is simply unavailable (`Alt+3` logs "diorama
+  unavailable: no usable GL context" — deliberately platform-neutral, since in a
+  browser the missing thing is WebGL2, not OpenGL 3.3).
 - **Alt+3 diorama** (in-level only): the board's DEC mural becomes a blurred back
   wall (baked gaussian DOF, `kWallBlurSigma`), BUM-plane sprites are classified by
   their own opaque silhouette — solid rectangles (lanes, blocks) become **extruded

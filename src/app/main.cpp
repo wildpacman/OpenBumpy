@@ -26,8 +26,10 @@
 #include "resources/world_resources.h"
 #include "game/world_graphs.h"
 #include "game/world_map.h"
-// Stage 1 of the web port compiles no GL, so the offline GL dev tools below
-// (--present-parity, --render-3d) are excluded from the web build with them.
+// The web build does compile GL (stage 2), but the offline GL dev tools below
+// (--present-parity, --render-3d) are still excluded from it: they are driven by
+// command-line flags a browser has no way to pass, and they write .bmp files to a
+// filesystem it has no way to keep.
 #ifndef __EMSCRIPTEN__
 #include "platform_gl3/gl_presenter.h"
 #include "platform_gl3/gl_util.h"

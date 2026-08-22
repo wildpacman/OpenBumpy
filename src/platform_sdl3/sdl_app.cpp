@@ -623,7 +623,7 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                         config.render3d = render3d;
                         persist();
                     } else {
-                        std::cerr << "3D mode unavailable: no OpenGL 3.3\n";
+                        std::cerr << "diorama unavailable: no usable GL context\n";
                     }
 #ifndef NDEBUG
                 } else if (event.key.key == SDLK_R && (event.key.mod & SDL_KMOD_ALT)) {

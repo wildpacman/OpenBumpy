@@ -28,6 +28,11 @@ GLuint compile_shader(const Gl33& gl, GLenum type, std::string_view source) {
     const GLuint shader = gl.CreateShader(type);
     // #version must be the first thing in a shader, so the preamble is element 0 of
     // the source array rather than a concatenation -- ShaderSource already takes one.
+    // Note the cost when reading a compile error: GLSL numbers the concatenated
+    // strings continuously, so reported line numbers are the shader file's plus the
+    // preamble's line count -- +1 on desktop, +2 on web. Do NOT "fix" this with
+    // #line: desktop GLSL and GLSL ES disagree by one on what its argument means, so
+    // it would trade a fixed offset for a platform-dependent one.
     const GLchar* srcs[2] = {kGlslPreamble, source.data()};
     const GLint lens[2] = {kGlslPreambleLen, static_cast<GLint>(source.size())};
     gl.ShaderSource(shader, 2, srcs, lens);

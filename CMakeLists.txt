@@ -138,7 +138,8 @@ if(MSVC)
   target_link_options(bumpy_port PRIVATE $<$<CONFIG:Release>:/SUBSYSTEM:WINDOWS>)
 endif()
 # Neither copy means anything for a wasm build: there is no SDL3 shared library to
-# sit beside the executable, and stage 1 ships no shaders.
+# sit beside the executable, and the shaders reach the browser a different way --
+# baked into bumpy.data by the staging rules above, not copied next to an exe.
 if(NOT EMSCRIPTEN)
   add_custom_command(TARGET bumpy_port POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different

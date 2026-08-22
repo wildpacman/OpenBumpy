@@ -50,7 +50,11 @@ GlPresenter::GlPresenter(SDL_Window* window) : window_(window) {
     SDL_GL_SetSwapInterval(0);
     if (!load_gl33(gl_)) {
         SDL_GL_DestroyContext(context_);
-        throw std::runtime_error("OpenGL 3.3 functions unavailable");
+        // Platform-neutral on purpose: this is the text a player sees when
+        // SDL_GL_GetProcAddress misses an entry point, and in a browser the thing
+        // that is missing is a WebGL2 (GLES 3.0) function, not an OpenGL 3.3 one.
+        throw std::runtime_error(
+            "required GL functions unavailable (need OpenGL 3.3 core, or WebGL2 in a browser)");
     }
     try {
         program_ = link_program(gl_, kFlatVert, kFlatFrag);

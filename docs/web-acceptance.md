@@ -150,6 +150,50 @@ Remember to rebuild with `-DBUMPY_PACE_PROBE=OFF` afterwards.
 
 ---
 
+## 8. The diorama — carried (stage 2, never seen in a browser)
+
+The whole point of stage 2, and the part no build can check: whether it looks
+right. Compare against the desktop build running the same board side by side.
+
+- [ ] Tab overlay → VIDEO shows **DIORAMA** and **FULLSCREEN**, and DIORAMA can
+      be toggled (it was inert through all of stage 1)
+- [ ] `Alt+3` toggles the diorama inside a level
+- [ ] The diorama actually renders: walls, sprites, the ball's core glow, the
+      ceiling light, overhead shadows, glossy block tops
+- [ ] It matches the desktop build on the same board — no missing pass, no
+      washed-out or oversaturated shading
+- [ ] Leaving a board keeps the diorama on screen through the edge-to-centre
+      darken rather than popping to flat for the transition
+- [ ] The setting survives a page reload (it persists through the same
+      `render3d` key as the desktop build)
+- [ ] **Pace probe with the diorama active.** Rebuild with
+      `-DBUMPY_PACE_PROBE=ON`, play a level on HARD with the tab foregrounded
+      and DevTools **undocked**, and confirm `busy` stays below 1.0. A diorama
+      frame is far heavier than the flat one that measured 0.375, so this is
+      the number that decides whether the diorama can stay on by default.
+- [ ] **The WebGL2-absent fallback.** With WebGL2 disabled in the browser, the
+      game should still start — in the flat presentation, with a console
+      warning — rather than aborting the tab. This path was dead code until
+      Task 3's fix round turned on exception handling (see below), so it has
+      never actually been exercised.
+
+If the diorama does not appear at all, the console will say why: a failed
+context or a shader that would not compile is reported as
+`warning: no usable GL context` or a GL info log, and the game falls back to the
+flat presentation rather than showing a black screen.
+
+Worth a moment on cost, not correctness: the web build now compiles with
+`-fexceptions` so that fallback (and every other `catch` in the port) actually
+degrades instead of aborting the tab — a pre-existing stage 1 gap that stage 2
+found only because it went looking for it. That bought correctness at
+203,222 bytes of wasm, an 11.1% increase (final size **2,033,450 bytes**).
+`-fwasm-exceptions` would be smaller and faster, but needs every linked
+object — including SDL — built in agreement, and depends on browser support
+for the Wasm exception-handling proposal. That is a download-size decision for
+the owner to make, not a defect to fix.
+
+---
+
 ## What was verified without you
 
 So you know where the floor is, independent of everything above:

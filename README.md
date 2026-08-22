@@ -120,8 +120,11 @@ which would have needed cross-origin isolation).
 Differences from the desktop build, all deliberate:
 
 - 4:3 only — no ASPECT row and no `Alt+A`.
-- No 3D (`Alt+3`) mode.
 - Settings persist to `localStorage` instead of `bumpy_port.cfg`.
+
+The 3D diorama runs in the browser too, on a WebGL2 context, and the settings
+overlay calls it DIORAMA on both platforms. A browser without WebGL2 falls back
+to the flat presentation rather than refusing to start.
 
 High scores stay session-only on both platforms, exactly as in the original —
 that's not a difference, just worth restating.

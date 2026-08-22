@@ -1,11 +1,10 @@
 # Bumpy Port — Project Status
 
-Source of truth for new sessions. Last updated: 2026-08-21 (**web port
-(browser), stage 1 implemented** — the classic flat presentation builds for
-WebAssembly with Emscripten and runs from a static URL, reusing the existing
-`SDL_Renderer` fallback path; see the Roadmap entry below and
-`docs/superpowers/specs/2026-08-20-web-port-classic-design.md`. Prior: 3D
-render mode implemented).
+Source of truth for new sessions. Last updated: 2026-08-22 (**web port
+(browser), stage 2 done** — the diorama now runs in the browser on a WebGL2
+(GLES 3.0) context; the mode is called DIORAMA in the UI on both platforms.
+See the Roadmap entry below and `docs/web-acceptance.md`. Prior: web port
+(browser), stage 1 implemented).
 
 ## Goal
 
@@ -85,6 +84,13 @@ only a platform adapter.
   URL; the in-browser playthrough is still pending (see
   `docs/web-acceptance.md`). See
   `docs/superpowers/specs/2026-08-20-web-port-classic-design.md`.
+- **Web port (browser), stage 2 — DONE.** The diorama runs in the browser on a
+  WebGL2 (GLES 3.0) context. The GL sources needed no porting; the GLSL version
+  line moved into `compile_shader` so one shader body serves both dialects. The
+  mode is now called DIORAMA in the UI on both platforms; `Alt+3` and the
+  `render3d` config key are unchanged. Verified: both builds compile warning-free
+  and the desktop suite is green; the in-browser look is still pending (see
+  `docs/web-acceptance.md`).
 
 ## Current state
 

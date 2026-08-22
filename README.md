@@ -112,10 +112,11 @@ python -m http.server 8000 --directory build/web-release
 
 Then open `http://localhost:8000/bumpy.html`.
 
-The build bakes all 47 of the original data files into `bumpy.data` (600,148
-bytes), so `build/web-release/` is a self-contained static site — no special
-server headers required (the port deliberately avoided `-sPROXY_TO_PTHREAD`,
-which would have needed cross-origin isolation).
+The build bakes the 47 original data files and the five GLSL sources the
+diorama reads at runtime into `bumpy.data` (604,662 bytes total), so
+`build/web-release/` is a self-contained static site — no special server
+headers required (the port deliberately avoided `-sPROXY_TO_PTHREAD`, which
+would have needed cross-origin isolation).
 
 Differences from the desktop build, all deliberate:
 

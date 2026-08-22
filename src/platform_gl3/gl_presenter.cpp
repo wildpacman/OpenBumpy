@@ -1,5 +1,9 @@
 #include "platform_gl3/gl_presenter.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/html5.h>
+#endif
+
 #include "platform_gl3/gl_util.h"
 #include "video/viewport.h"
 
@@ -146,12 +150,26 @@ void GlPresenter::draw_flat(const IndexedFramebuffer& frame, int target_w, int t
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
+void gl_drawable_size(SDL_Window* window, int* w, int* h) {
+#ifdef __EMSCRIPTEN__
+    const char* canvas_id =
+        SDL_GetStringProperty(SDL_GetWindowProperties(window),
+                              SDL_PROP_WINDOW_EMSCRIPTEN_CANVAS_ID_STRING, "#canvas");
+    if (emscripten_get_canvas_element_size(canvas_id, w, h) == EMSCRIPTEN_RESULT_SUCCESS &&
+        *w > 0 && *h > 0) {
+        return;
+    }
+    // Canvas query failed: fall through to SDL's answer rather than render nothing.
+#endif
+    SDL_GetWindowSizeInPixels(window, w, h);
+}
+
 void GlPresenter::present_flat(const IndexedFramebuffer& frame, int logical_h) {
     SDL_GL_MakeCurrent(window_, context_);
     gl_.BindFramebuffer(GL_FRAMEBUFFER, 0);
     int w = 0;
     int h = 0;
-    SDL_GetWindowSizeInPixels(window_, &w, &h);
+    gl_drawable_size(window_, &w, &h);
     draw_flat(frame, w, h, logical_h);
     SDL_GL_SwapWindow(window_);
 }

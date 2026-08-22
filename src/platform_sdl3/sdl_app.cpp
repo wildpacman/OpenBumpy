@@ -407,7 +407,7 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
 
         int win_w = 0;
         int win_h = 0;
-        SDL_GetWindowSizeInPixels(window_, &win_w, &win_h);
+        gl_drawable_size(window_, &win_w, &win_h);
         // 3D fills the whole window at any shape: scene_frustum keeps the 4:3-
         // corrected field whole and centred; spare window area shows mirrored
         // wall. Alt+A (square_pixels) only affects the flat path.
@@ -430,7 +430,7 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
         }
         int win_w = 0;
         int win_h = 0;
-        SDL_GetWindowSizeInPixels(window_, &win_w, &win_h);
+        gl_drawable_size(window_, &win_w, &win_h);
         gl_->gl().BindFramebuffer(GL_FRAMEBUFFER, 0);
         scene_renderer->render(wipe_quads, wipe_light_x, wipe_light_y,
                                Viewport{0, 0, win_w, win_h});

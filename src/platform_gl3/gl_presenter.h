@@ -14,6 +14,17 @@ namespace bumpy {
 // quad with a pixel-art scaling shader (crisp interior, <=1px anti-aliased pixel
 // edges -- the GL twin of SDL_SCALEMODE_PIXELART). Also owns the GL context that
 // the 3D scene renderer (Task 12) draws with.
+// Size of the actual GL framebuffer, which is what glViewport must match.
+//
+// This is deliberately NOT SDL_GetWindowSizeInPixels. On the web the framebuffer is the
+// canvas backing store, and SDL3's Emscripten backend does not always agree with it: on
+// fullscreen entry it takes the window size from the canvas's CSS inline style, which its
+// fullscreen strategy fills in from screen.width/height. Those ignore page zoom while the
+// backing store follows the zoomed layout viewport, so at any zoom but 100% the two
+// diverge -- and a viewport smaller than the framebuffer lands bottom-left, because that
+// is where GL's origin is. Ask the canvas directly instead.
+void gl_drawable_size(SDL_Window* window, int* w, int* h);
+
 class GlPresenter {
 public:
     // Creates the GL 3.3 core context on `window` (created with SDL_WINDOW_OPENGL

@@ -97,7 +97,7 @@ still `bumpy_port.exe`, matching the CMake project name).
 ## Browser build
 
 The classic (flat, original-look) presentation also builds for the browser
-with Emscripten. The 3D render mode is desktop-only for now.
+with Emscripten. The 3D diorama builds for the browser too.
 
 Prerequisites: [emsdk](https://emscripten.org/docs/getting_started/downloads.html)
 (tested with 6.0.8). Like `windows-debug`'s hardcoded generator, the

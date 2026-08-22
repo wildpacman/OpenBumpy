@@ -20,9 +20,13 @@ python -m http.server 8000 --directory build/web-release
 Then open <http://localhost:8000/bumpy.html>.
 
 Expected artifacts in `build/web-release/`: `bumpy.html`, `bumpy.js`,
-`bumpy.wasm` (~1.7 MB), `bumpy.data` (**600,148 bytes** exactly — that is the
-byte sum of the 47 original data files, and a different number means the wrong
-set got staged).
+`bumpy.wasm` (**~2.0 MB**, 2,033,669 bytes — stage 1 measured ~1.78 MB; most of
+the growth is `-fexceptions`, which stage 2 needed to make the WebGL2-absent
+fallback and every other `catch` in the port actually degrade instead of
+aborting the tab, see section 8), `bumpy.data` (**604,662 bytes** exactly —
+600,148 bytes from the 47 original data files plus 4,514 bytes of GLSL shaders
+that stage 2 added to the image, and a different number means the wrong set
+got staged).
 
 ## 2. The page itself — carried (Task 7, never opened by anyone)
 
@@ -49,8 +53,9 @@ presentation mode produces side bars when the window is wider than the 4:3
 content and top/bottom bars when it is narrower; "letterbox" names the SDL
 mode, not the bar orientation you'll actually see). What was never checked:
 
-- [ ] Tab overlay → VIDEO shows **exactly two rows**: `3D` (showing OFF, not
-      selectable — no GL in stage 1) and `FULLSCREEN`. No ASPECT row.
+- [ ] Tab overlay → VIDEO shows **exactly two rows**: **DIORAMA** (selectable,
+      toggles the diorama — no longer the OFF-only, unselectable stage 1
+      placeholder) and **FULLSCREEN**. No ASPECT row.
 - [ ] **`Alt+A` does nothing** (on desktop it flips 16:10 ↔ 4:3; in the browser
       it must be inert)
 - [ ] Picture stays 4:3 at several window sizes, never stretched — pillarboxed
@@ -185,8 +190,9 @@ flat presentation rather than showing a black screen.
 Worth a moment on cost, not correctness: the web build now compiles with
 `-fexceptions` so that fallback (and every other `catch` in the port) actually
 degrades instead of aborting the tab — a pre-existing stage 1 gap that stage 2
-found only because it went looking for it. That bought correctness at
-203,222 bytes of wasm, an 11.1% increase (final size **2,033,450 bytes**).
+found only because it went looking for it. That bought correctness at roughly
+203 KB of wasm, an ~11% increase over the pre-`-fexceptions` build; the
+current build measures **2,033,669 bytes** total (see section 1).
 `-fwasm-exceptions` would be smaller and faster, but needs every linked
 object — including SDL — built in agreement, and depends on browser support
 for the Wasm exception-handling proposal. That is a download-size decision for
@@ -211,9 +217,10 @@ So you know where the floor is, independent of everything above:
   existing assertion was weakened or removed.
 - Every source file force-rebuilt for both targets at the end: **zero warnings**
   on either platform
-- `bumpy.data` = 600,148 bytes, independently confirmed as the manifest's 50
-  entries minus the two DOS binaries and one text file nothing loads
-  (`BUMPY.EXE`, `BUMP-Y.EXE`, `OLD-GAMES.NFO`)
+- `bumpy.data` = 604,662 bytes: 600,148 bytes independently confirmed as the
+  manifest's 50 entries minus the two DOS binaries and one text file nothing
+  loads (`BUMPY.EXE`, `BUMP-Y.EXE`, `OLD-GAMES.NFO`), plus 4,514 bytes of
+  GLSL shaders that stage 2 added to the asset image
 - The splash screen rendering in a browser tab, with the tab staying responsive
   to scrolling and JS evaluation while the game loop ran
 - The 4:3 content box measured at exactly 1.3333

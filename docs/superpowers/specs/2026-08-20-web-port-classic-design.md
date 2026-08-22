@@ -36,17 +36,24 @@ Five things genuinely have to change; everything else does compile as-is:
 
 ### What stage 2 has to do (recorded here so it is not re-litigated later)
 
-The port's GL surface is **55 entry points**: 16 called directly as `gl*()` in
-`src/platform_gl3/*.cpp` (GL 1.1, exported by `opengl32.dll`), plus 39 loaded
-through the `BUMPY_GL33_FUNCS` X-macro in `src/platform_gl3/gl33.h`. The 39 are
-spelled `X(PFNGLCREATESHADERPROC, CreateShader)` and so do not show up in a grep
-for `gl[A-Z]` — an earlier revision of this section counted only the 16 and put
-the surface at 16. Count both lists.
+The port's GL surface is **56 entry points**: 17 called directly as `gl*()`
+(GL 1.1, exported by `opengl32.dll`) — 16 in `src/platform_gl3/*.cpp` plus
+`glScissor` in `src/platform_sdl3/sdl_app.cpp`, which clears the diorama's
+letterbox bars — plus 39 loaded through the `BUMPY_GL33_FUNCS` X-macro in
+`src/platform_gl3/gl33.h`. The 39 are spelled
+`X(PFNGLCREATESHADERPROC, CreateShader)` and so do not show up in a grep for
+`gl[A-Z]` — an earlier revision of this section counted only the direct calls
+and put the surface at 16. A later one counted both lists but scoped the grep
+for direct calls to `src/platform_gl3/*.cpp`, missed `glScissor`, and put the
+surface at 55. Count both lists, over every file in `src/` that calls GL — as
+of stage 2 that is the three `platform_gl3` translation units plus
+`sdl_app.cpp`.
 
-The conclusion is unchanged, and holds for the corrected number: all 55 are core
+The conclusion is unchanged, and holds for the corrected number: all 56 are core
 GLES 3.0. The 39 are ES 2.0 functions except the three VAO entry points
 (`GenVertexArrays`, `BindVertexArray`, `DeleteVertexArrays`), which ES 3.0
-promoted to core; the 16 are all ES 2.0. Only two texture formats are used
+promoted to core; the 17 direct calls are all ES 2.0 core (`glScissor` is GL 1.0
+and ES 2.0 core). Only two texture formats are used
 (`GL_RGBA8`, `GL_R8`/`GL_RED`), both ES 3.0 sized formats, and the only
 `glPixelStorei` parameters are `GL_UNPACK_ALIGNMENT`/`GL_PACK_ALIGNMENT`, which
 ES 2.0 already has. There are no geometry or compute shaders, no buffer mapping,

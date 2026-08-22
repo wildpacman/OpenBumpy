@@ -27,6 +27,10 @@ be bugs, possibly game-breaking ones on some boards. If you hit one, please
 [open an issue](https://github.com/wildpacman/bumpy_port/issues) with the
 world/board and what happened.
 
+There is also a [browser build](#browser-build) from the same sources. It is
+newer and less tested than the Windows one — same game, same code, one `#ifdef`
+away.
+
 <p align="center">
   <img src="docs/media/title.png" width="45%" alt="Title screen"/>
   <img src="docs/media/worldmap.png" width="45%" alt="World map"/>
@@ -124,12 +128,15 @@ Differences from the desktop build, all deliberate:
 - Settings persist to `localStorage` instead of `bumpy_port.cfg`.
 
 The 3D diorama is compiled into the browser build too, against a WebGL2
-context, and the settings overlay calls it DIORAMA on both platforms. What it
-does in an actual browser has **not** been verified: nobody has loaded the page
-and looked at it yet, so whether the diorama renders correctly, runs at a
-playable frame rate, or degrades cleanly on a browser without WebGL2 is all
-still open. Section 8 of [`docs/web-acceptance.md`](docs/web-acceptance.md) is
-the checklist for settling it.
+context, and the settings overlay calls it DIORAMA on both platforms.
+
+The browser build has been played: the game runs, the diorama renders, audio
+works, fullscreen fills the screen, and in-level pacing measures 35.04 Hz
+against the 35.04 Hz the engine asks for, with no late ticks. It is still the
+less-tested of the two targets — it has only been run in Chrome on Windows, and
+most of [`docs/web-acceptance.md`](docs/web-acceptance.md) is unticked. The one
+path known never to have been exercised is the fallback on a browser without
+WebGL2.
 
 High scores stay session-only on both platforms, exactly as in the original —
 that's not a difference, just worth restating.

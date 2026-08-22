@@ -1,2 +1,10 @@
 analysis/catalog/*.csv text eol=lf
 analysis/reports/*.json text eol=lf
+
+# The diorama's GLSL is baked into the web build's bumpy.data byte for byte, and
+# core.autocrlf would otherwise decide its line endings per checkout: the same commit
+# built to two different asset images (604,662 bytes with LF, 604,783 with CRLF) purely
+# from which branch git last wrote the files. Pin them so the artifact is a function of
+# the commit and nothing else. The original game data next to them is gitignored -- those
+# are the owner's own copies of the 1993 files -- so it is not exposed to this.
+shaders3d/* text eol=lf

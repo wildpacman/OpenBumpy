@@ -29,6 +29,14 @@ aborting the tab, see section 8), `bumpy.data` (**604,662 bytes** exactly —
 that stage 2 added to the image, and a different number means the wrong set
 got staged).
 
+That last number is only stable because the shaders are pinned to LF in
+`.gitattributes`. The repo is checked out with `core.autocrlf`, and without the
+pin the same commit builds to **604,783 bytes** after a checkout that happens to
+write them CRLF — 121 bytes, one per line. It cost a real investigation once;
+if the figure ever moves by exactly 121, that is what happened. The original
+game data sitting next to the shaders is gitignored — those are your own copies
+of the 1993 files — so it is not exposed to this.
+
 ## 2. The page itself — carried (Task 7, never opened by anyone)
 
 - [ ] Loading bar fills, text changes to **CLICK TO PLAY**

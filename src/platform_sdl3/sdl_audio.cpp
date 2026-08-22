@@ -51,21 +51,39 @@ SdlAudio::~SdlAudio() {
     }
 }
 
+int SdlAudio::queued_ms() const {
+#ifdef __EMSCRIPTEN__
+    if (stream_) {
+        const int queued = SDL_GetAudioStreamQueued(stream_);
+        if (queued > 0) {
+            return queued / static_cast<int>(sizeof(float)) * 1000 /
+                   static_cast<int>(AudioEngine::kSampleRate);
+        }
+    }
+#endif
+    return 0;
+}
+
+void SdlAudio::set_target_ms(int ms) noexcept {
+    target_ms_ = ms < 10 ? 10 : (ms > 500 ? 500 : ms);
+}
+
 void SdlAudio::pump() {
 #ifdef __EMSCRIPTEN__
     if (!stream_) {
         return;
     }
-    // Hold ~100 ms queued: long enough to ride out browser timer jitter (a yielded tick
-    // can overshoot by several milliseconds), short enough that SFX stay in step with
-    // what is on screen.
-    constexpr int kTargetBytes =
-        static_cast<int>(AudioEngine::kSampleRate / 10) * static_cast<int>(sizeof(float));
+    // Hold target_ms_ of audio queued: long enough to ride out browser timer jitter (a
+    // yielded tick can overshoot by several milliseconds), short enough that SFX stay in
+    // step with what is on screen. pump() runs once per game tick, so the queue must
+    // outlast one tick with margin -- 14.3 ms on HARD in a level, 28.5 ms at the half rate.
+    const int target_bytes = static_cast<int>(AudioEngine::kSampleRate) * target_ms_ / 1000 *
+                             static_cast<int>(sizeof(float));
     const int queued = SDL_GetAudioStreamQueued(stream_);
-    if (queued < 0 || queued >= kTargetBytes) {
+    if (queued < 0 || queued >= target_bytes) {
         return;
     }
-    const std::size_t frames = static_cast<std::size_t>(kTargetBytes - queued) / sizeof(float);
+    const std::size_t frames = static_cast<std::size_t>(target_bytes - queued) / sizeof(float);
     if (scratch_.size() < frames) {
         scratch_.resize(frames);
     }

@@ -25,6 +25,16 @@ public:
     // SDL's audio thread pulls through callback(). Safe (and cheap) to call every frame.
     void pump();
 
+    // Web build only. `target_ms` is how much already-rendered audio pump() keeps queued,
+    // and it is a floor on how late an SFX can be heard: a sound triggered this frame is
+    // rendered *behind* everything already in the queue, so it cannot play sooner than the
+    // queue takes to drain. Desktop has no equivalent -- SDL's callback pulls just in time.
+    // TEMPORARY setter, for measuring how much of the observed lag is this and how much is
+    // the browser's own output latency.
+    [[nodiscard]] int queued_ms() const;
+    [[nodiscard]] int target_ms() const noexcept { return target_ms_; }
+    void set_target_ms(int ms) noexcept;
+
 private:
     static void callback(void* userdata, SDL_AudioStream* stream, int additional_amount,
                          int total_amount);
@@ -36,6 +46,7 @@ private:
     // instead. Exactly one of the two is ever active for a given build (the other compiles
     // to nothing), so only one thread ever touches scratch_ and no locking is needed.
     std::vector<float> scratch_;
+    int target_ms_{100};
 };
 
 }  // namespace bumpy

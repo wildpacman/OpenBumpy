@@ -559,6 +559,15 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
         if (audio_pump_) {
             audio_pump_->pump();
         }
+#ifdef __EMSCRIPTEN__
+        // TEMPORARY PACE/AUDIO DIAGNOSTIC -- strip once both questions are answered.
+        // `late` is the one that decides "is the game actually slower": it counts ticks
+        // that arrived past their own deadline, where the loop gives up on the deficit
+        // (next_frame = now) instead of catching up. A nonzero count is a real slowdown;
+        // zero means the rate is right and the sluggishness is somewhere else.
+        const Uint64 diag_entry = SDL_GetPerformanceCounter();
+        bool diag_late = false;
+#endif
 #if defined(BUMPY_PACE_PROBE)
         // Pace probe (opt-in, never in a shipped build). wait_next_tick is the single
         // mechanism the web port's cadence depends on and it runs on every screen, so
@@ -595,7 +604,72 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
 #endif
         } else {
             next_frame = now;  // behind schedule -> resync
+#ifdef __EMSCRIPTEN__
+            diag_late = true;  // TEMPORARY
+#endif
         }
+#ifdef __EMSCRIPTEN__
+        {  // TEMPORARY: report to the on-page panel roughly twice a second
+            static Uint64 win_start = 0, wait_total = 0, prev_exit = 0, worst = 0;
+            static Uint64 period_prev = 0;
+            static bool period_varied = false;
+            static int ticks = 0, late = 0;
+            const Uint64 diag_exit = SDL_GetPerformanceCounter();
+            if (win_start == 0) {
+                win_start = prev_exit = diag_exit;  // first call only opens the window
+            } else {
+                wait_total += diag_exit - diag_entry;
+                const Uint64 period = diag_exit - prev_exit;
+                prev_exit = diag_exit;
+                if (period > worst) {
+                    worst = period;
+                }
+                if (diag_late) {
+                    ++late;
+                }
+                if (tick_period != period_prev) {
+                    period_varied = true;
+                }
+                if (++ticks >= 140) {
+                    const double freq = static_cast<double>(perf_freq);
+                    const double elapsed = static_cast<double>(diag_exit - win_start) / freq;
+                    const double waited = static_cast<double>(wait_total) / freq;
+                    char line[320];
+                    std::snprintf(line, sizeof(line),
+                                  "pace  %.2f Hz achieved / %.2f asked%s | busy %.2f | "
+                                  "worst tick %.1f ms | late %d of %d\n"
+                                  "audio queued %d ms, target %d ms",
+                                  ticks / elapsed, freq / static_cast<double>(tick_period),
+                                  period_varied ? " (varied)" : "",
+                                  (elapsed - waited) / elapsed,
+                                  static_cast<double>(worst) * 1000.0 / freq, late, ticks,
+                                  audio_pump_ ? audio_pump_->queued_ms() : -1,
+                                  audio_pump_ ? audio_pump_->target_ms() : -1);
+                    MAIN_THREAD_EM_ASM({
+                        var el = document.getElementById('diag');
+                        if (!el) { return; }
+                        var ac = Module.SDL3 && Module.SDL3.audioContext;
+                        var ms = function (s) { return Math.round((s || 0) * 1000); };
+                        el.textContent =
+                            UTF8ToString($0) + '\n' +
+                            (ac ? ('webaudio ' + ac.sampleRate + ' Hz, ' + ac.state +
+                                   ' | base ' + ms(ac.baseLatency) +
+                                   ' ms | output ' + ms(ac.outputLatency) + ' ms')
+                                : 'webaudio: no context') +
+                            '\nF8 cycles the audio target, F9 hides this';
+                        el.hidden = false;
+                    }, line);
+                    win_start = diag_exit;
+                    wait_total = 0;
+                    worst = 0;
+                    ticks = 0;
+                    late = 0;
+                    period_varied = false;
+                }
+            }
+            period_prev = tick_period;
+        }
+#endif
 #if defined(BUMPY_PACE_PROBE)
         {
             // Report every 300 calls. The window is measured exit-to-exit so it spans
@@ -677,6 +751,20 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
                     platform_set_fullscreen(window_, !fullscreen);
                     config.fullscreen = !fullscreen;
                     persist();
+#ifdef __EMSCRIPTEN__
+                } else if (event.key.key == SDLK_F8) {
+                    // TEMPORARY: cycle how much already-rendered audio the pump keeps
+                    // queued, so the share of the observed lag that is ours can be heard
+                    // rather than argued about. The queue only shrinks as it drains, so
+                    // give each setting a second before judging it.
+                    if (audio_pump_) {
+                        const int now_ms = audio_pump_->target_ms();
+                        audio_pump_->set_target_ms(now_ms > 80   ? 60
+                                                   : now_ms > 45 ? 35
+                                                   : now_ms > 25 ? 20
+                                                                 : 100);
+                    }
+#endif
 #ifndef __EMSCRIPTEN__
                 } else if (event.key.key == SDLK_A && (event.key.mod & SDL_KMOD_ALT)) {
                     // Alt+A: flip the flat-path display aspect between 16:10 and

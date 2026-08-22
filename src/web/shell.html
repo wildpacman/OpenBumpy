@@ -27,11 +27,17 @@
   #gate p  { margin: 0; letter-spacing: .2em; }
   #bar  { width: 240px; height: 6px; border: 1px solid #444; }
   #fill { height: 100%; width: 0; background: #e0c060; transition: width .2s; }
+  /* TEMPORARY, with the pace/audio diagnostic in src/platform_sdl3/sdl_app.cpp. */
+  #diag { position: fixed; z-index: 3; left: 0; right: 0; bottom: 0; margin: 0;
+          padding: .5rem .75rem; background: rgba(0,0,0,.82); border-top: 1px solid #444;
+          font-size: 11px; line-height: 1.4; white-space: pre; color: #9fe09f;
+          user-select: text; }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <div id="frame"><canvas id="canvas" tabindex="-1"></canvas></div>
+<pre id="diag" hidden></pre>
 <div id="gate">
   <h1>BUMPY'S ARCADE FANTASY</h1>
   <p id="status">LOADING</p>
@@ -50,7 +56,8 @@ var ended = false;
 
 // Arrows, space and Tab must reach the game rather than scrolling the page or moving
 // focus off the canvas -- Tab is the settings-overlay key.
-var swallowed = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab'];
+// F8 (audio queue target) and F9 (hide the panel) belong to the TEMPORARY diagnostic.
+var swallowed = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab', 'F8', 'F9'];
 window.addEventListener('keydown', function (e) {
   if (swallowed.indexOf(e.key) !== -1) { e.preventDefault(); }
 }, true);
@@ -65,6 +72,17 @@ window.addEventListener('keydown', function (e) {
 // only re-reads sizes, so a repeat is free.
 document.addEventListener('fullscreenchange', function () {
   requestAnimationFrame(function () { window.dispatchEvent(new Event('resize')); });
+});
+
+// TEMPORARY, with the pace/audio diagnostic: the panel is written from C++ twice a
+// second. F9 hides it; clicking copies it.
+var diag = document.getElementById('diag');
+window.addEventListener('keydown', function (e) {
+  if (e.key === 'F9') { diag.hidden = !diag.hidden; }
+});
+diag.addEventListener('click', function () {
+  if (navigator.clipboard) { navigator.clipboard.writeText(diag.textContent); }
+  canvas.focus();
 });
 
 var Module = {

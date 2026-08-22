@@ -20,7 +20,7 @@ python -m http.server 8000 --directory build/web-release
 Then open <http://localhost:8000/bumpy.html>.
 
 Expected artifacts in `build/web-release/`: `bumpy.html`, `bumpy.js`,
-`bumpy.wasm` (**~2.0 MB**, 2,033,669 bytes — stage 1 measured ~1.78 MB; most of
+`bumpy.wasm` (**~2.0 MB**, 2,033,725 bytes — stage 1 measured ~1.78 MB; most of
 the growth is `-fexceptions`, which stage 2 needed to make the WebGL2-absent
 fallback and every other `catch` in the port actually degrade instead of
 aborting the tab, see section 8), `bumpy.data` (**604,662 bytes** exactly —
@@ -187,16 +187,54 @@ context or a shader that would not compile is reported as
 `warning: no usable GL context` or a GL info log, and the game falls back to the
 flat presentation rather than showing a black screen.
 
+**One narrow failure will not fall back, and leaves a dead tab instead of a
+warning.** `SdlApp`'s constructor (`src/platform_sdl3/sdl_app.cpp`) creates an
+`SDL_WINDOW_OPENGL` window, and if `GlPresenter` throws it destroys that window
+and creates a plain one for `SDL_CreateRenderer`. On desktop that is correct.
+In a browser a canvas hands out exactly one context type for its lifetime, so
+the second `getContext` returns null and the fallback cannot succeed.
+
+The two cases anyone is actually likely to hit are both fine. No WebGL2 at all
+fails before any context is attached, so the canvas is still clean and the flat
+fallback works — that is the checklist item above. A *diorama shader* failure
+happens later, inside the frame loop, and falls back to the GL flat path
+without touching the window. What is exposed is narrower than either:
+`load_gl33` failing to resolve one entry point, or the flat
+`kFlatVert`/`kFlatFrag` failing to compile. Both throw from the constructor
+*after* a GL context has been attached to the canvas.
+
+So if the tab dies rather than falling back, that is the likely cause — a known
+narrow gap, not a mystery. The eventual fix, recorded so it need not be
+re-derived: under Emscripten, skip the destroy/recreate entirely and hand the
+existing `SDL_WINDOW_OPENGL` window straight to `SDL_CreateRenderer`. It was
+left undone on purpose — the change is small, but it rewrites a fallback path
+no test can reach, at the very end of the stage. A narrow documented failure
+beats an unverified rewrite.
+
 Worth a moment on cost, not correctness: the web build now compiles with
 `-fexceptions` so that fallback (and every other `catch` in the port) actually
 degrades instead of aborting the tab — a pre-existing stage 1 gap that stage 2
 found only because it went looking for it. That bought correctness at roughly
 203 KB of wasm, an ~11% increase over the pre-`-fexceptions` build; the
-current build measures **2,033,669 bytes** total (see section 1).
-`-fwasm-exceptions` would be smaller and faster, but needs every linked
-object — including SDL — built in agreement, and depends on browser support
-for the Wasm exception-handling proposal. That is a download-size decision for
-the owner to make, not a defect to fix.
+current build measures **2,033,725 bytes** total (see section 1).
+
+Worth knowing, but there is nothing here to decide: the smaller, faster
+alternative — `-fwasm-exceptions`, native Wasm exception handling — is not
+available to this port. It is incompatible with Asyncify, and emcc 6.0.8 says
+so itself when you ask for both:
+
+```
+em++: warning: ASYNCIFY=1 is not compatible with -fwasm-exceptions.
+Parts of the program that mix ASYNCIFY and exceptions will not compile.
+```
+
+This build is `-sASYNCIFY`, and it mixes the two by construction: `main()`
+wraps the whole game in a `try`, and the run loop inside it yields to the
+browser through `emscripten_sleep` — which *is* Asyncify — on every frame
+(`src/platform_sdl3/sdl_app.cpp`). So `-fexceptions` costs what it costs for as
+long as the port needs Asyncify to give the browser its thread back. (An
+earlier revision of this note offered `-fwasm-exceptions` as a download-size
+decision for the owner to make. It is not one; the option does not exist here.)
 
 ---
 

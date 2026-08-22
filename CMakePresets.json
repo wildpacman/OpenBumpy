@@ -8,6 +8,16 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }
+    },
+    {
+      "name": "web-release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/web-release",
+      "toolchainFile": "C:/dev/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_MAKE_PROGRAM": "C:/Program Files/Microsoft Visual Studio/18/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe"
+      }
     }
   ],
   "buildPresets": [
@@ -20,6 +30,10 @@
       "name": "windows-release",
       "configurePreset": "windows-debug",
       "configuration": "Release"
+    },
+    {
+      "name": "web-release",
+      "configurePreset": "web-release"
     }
   ],
   "testPresets": [

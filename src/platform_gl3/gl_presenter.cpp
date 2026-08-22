@@ -1,5 +1,9 @@
 #include "platform_gl3/gl_presenter.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/html5.h>
+#endif
+
 #include "platform_gl3/gl_util.h"
 #include "video/viewport.h"
 
@@ -10,7 +14,7 @@ namespace {
 // Pixel-art scaling: sample on a LINEAR texture but snap UVs so that pixels stay
 // crisp except a <=1-screen-pixel ramp at texel boundaries. At integer scales the
 // clamp saturates at +-0.5 texel = exact texel centers, i.e. bit-exact nearest.
-constexpr const char* kFlatVert = R"GLSL(#version 330 core
+constexpr const char* kFlatVert = R"GLSL(
 layout(location = 0) in vec2 a_pos;
 layout(location = 1) in vec2 a_uv;
 out vec2 v_uv;
@@ -20,7 +24,7 @@ void main() {
 }
 )GLSL";
 
-constexpr const char* kFlatFrag = R"GLSL(#version 330 core
+constexpr const char* kFlatFrag = R"GLSL(
 in vec2 v_uv;
 out vec4 o_color;
 uniform sampler2D u_tex;
@@ -50,7 +54,11 @@ GlPresenter::GlPresenter(SDL_Window* window) : window_(window) {
     SDL_GL_SetSwapInterval(0);
     if (!load_gl33(gl_)) {
         SDL_GL_DestroyContext(context_);
-        throw std::runtime_error("OpenGL 3.3 functions unavailable");
+        // Platform-neutral on purpose: this is the text a player sees when
+        // SDL_GL_GetProcAddress misses an entry point, and in a browser the thing
+        // that is missing is a WebGL2 (GLES 3.0) function, not an OpenGL 3.3 one.
+        throw std::runtime_error(
+            "required GL functions unavailable (need OpenGL 3.3 core, or WebGL2 in a browser)");
     }
     try {
         program_ = link_program(gl_, kFlatVert, kFlatFrag);
@@ -142,12 +150,26 @@ void GlPresenter::draw_flat(const IndexedFramebuffer& frame, int target_w, int t
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
+void gl_drawable_size(SDL_Window* window, int* w, int* h) {
+#ifdef __EMSCRIPTEN__
+    const char* canvas_id =
+        SDL_GetStringProperty(SDL_GetWindowProperties(window),
+                              SDL_PROP_WINDOW_EMSCRIPTEN_CANVAS_ID_STRING, "#canvas");
+    if (emscripten_get_canvas_element_size(canvas_id, w, h) == EMSCRIPTEN_RESULT_SUCCESS &&
+        *w > 0 && *h > 0) {
+        return;
+    }
+    // Canvas query failed: fall through to SDL's answer rather than render nothing.
+#endif
+    SDL_GetWindowSizeInPixels(window, w, h);
+}
+
 void GlPresenter::present_flat(const IndexedFramebuffer& frame, int logical_h) {
     SDL_GL_MakeCurrent(window_, context_);
     gl_.BindFramebuffer(GL_FRAMEBUFFER, 0);
     int w = 0;
     int h = 0;
-    SDL_GetWindowSizeInPixels(window_, &w, &h);
+    gl_drawable_size(window_, &w, &h);
     draw_flat(frame, w, h, logical_h);
     SDL_GL_SwapWindow(window_);
 }

@@ -92,9 +92,16 @@ void SettingsRenderer::render(const SettingsView& view, IndexedFramebuffer& targ
         break;
     case SettingsPage::video:
         title("VIDEO");
-        row(0, "3D", view.render3d ? "ON" : "OFF");
+        // "DIORAMA", not "3D": the name says what the mode is rather than how it is
+        // drawn, and it does not collide with the separate xBRZ "HD" mode. Seven glyph
+        // cells, well inside the 11 the label column allows.
+        row(0, "DIORAMA", view.render3d ? "ON" : "OFF");
+#ifdef __EMSCRIPTEN__
+        row(1, "FULLSCREEN", view.fullscreen ? "ON" : "OFF");
+#else
         row(1, "ASPECT", view.square_pixels ? "16.10" : "4.3");
         row(2, "FULLSCREEN", view.fullscreen ? "ON" : "OFF");
+#endif
         break;
     case SettingsPage::audio:
         title("AUDIO");

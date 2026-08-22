@@ -1,4 +1,3 @@
-#version 330 core
 in vec2 v_uv;
 in float v_shade;   // carries the shadow strength (kShadowAlpha)
 in vec3 v_world;

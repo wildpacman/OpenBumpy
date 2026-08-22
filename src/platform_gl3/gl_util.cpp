@@ -4,13 +4,38 @@
 #include <stdexcept>
 #include <string>
 
+namespace {
+
+// The GLSL version line lives here rather than in the shader sources. WebGL2 speaks
+// GLSL ES 3.00, which rejects "#version 330 core" and gives fragment shaders no
+// default float precision; desktop GL 3.3 rejects "#version 300 es". The bodies are
+// otherwise identical, so keeping one copy of each and supplying the dialect here
+// beats forking seven shaders into fourteen -- the diorama's look was tuned once and
+// should not have to be tuned twice.
+#ifdef __EMSCRIPTEN__
+constexpr const char* kGlslPreamble = "#version 300 es\nprecision highp float;\n";
+#else
+constexpr const char* kGlslPreamble = "#version 330 core\n";
+#endif
+constexpr GLint kGlslPreambleLen =
+    static_cast<GLint>(std::char_traits<char>::length(kGlslPreamble));
+
+}  // namespace
+
 namespace bumpy {
 
 GLuint compile_shader(const Gl33& gl, GLenum type, std::string_view source) {
     const GLuint shader = gl.CreateShader(type);
-    const GLchar* src = source.data();
-    const GLint len = static_cast<GLint>(source.size());
-    gl.ShaderSource(shader, 1, &src, &len);
+    // #version must be the first thing in a shader, so the preamble is element 0 of
+    // the source array rather than a concatenation -- ShaderSource already takes one.
+    // Note the cost when reading a compile error: GLSL numbers the concatenated
+    // strings continuously, so reported line numbers are the shader file's plus the
+    // preamble's line count -- +1 on desktop, +2 on web. Do NOT "fix" this with
+    // #line: desktop GLSL and GLSL ES disagree by one on what its argument means, so
+    // it would trade a fixed offset for a platform-dependent one.
+    const GLchar* srcs[2] = {kGlslPreamble, source.data()};
+    const GLint lens[2] = {kGlslPreambleLen, static_cast<GLint>(source.size())};
+    gl.ShaderSource(shader, 2, srcs, lens);
     gl.CompileShader(shader);
     GLint ok = GL_FALSE;
     gl.GetShaderiv(shader, GL_COMPILE_STATUS, &ok);

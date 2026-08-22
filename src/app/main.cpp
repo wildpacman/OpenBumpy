@@ -26,9 +26,15 @@
 #include "resources/world_resources.h"
 #include "game/world_graphs.h"
 #include "game/world_map.h"
+// The web build does compile GL (stage 2), but the offline GL dev tools below
+// (--present-parity, --render-3d) are still excluded from it: they are driven by
+// command-line flags a browser has no way to pass, and they write .bmp files to a
+// filesystem it has no way to keep.
+#ifndef __EMSCRIPTEN__
 #include "platform_gl3/gl_presenter.h"
 #include "platform_gl3/gl_util.h"
 #include "platform_gl3/scene_renderer.h"
+#endif
 #include "video/board_renderer.h"
 #include "video/high_score_renderer.h"
 #include "video/hud.h"
@@ -55,7 +61,44 @@
 #include <string_view>
 #include <vector>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/em_js.h>
+
+// Quitting -- the Tab overlay's QUIT row, or Escape out of the menu -- ends the run loop
+// and returns from main(). EXIT_RUNTIME defaults to 0, so the page stays alive while the
+// canvas goes dead and the click-to-play gate is already hidden: the player is left with a
+// frozen picture, no message, and no way back short of reloading by hand. Hand the shell
+// back its gate as a sign-off instead. Only notifies; the wording and the reload live in
+// src/web/shell.html, which is where the page's DOM is described.
+EM_JS(void, bumpy_web_game_exited, (), {
+    if (Module.onGameExit) {
+        Module.onGameExit();
+    }
+});
+#endif
+
 namespace {
+
+#ifdef __EMSCRIPTEN__
+
+// The web build's assets are baked into the .data image and mounted at /assets by
+// --preload-file, so there is nothing to search for and nothing that can drift.
+std::filesystem::path find_asset_root(std::string_view) {
+    return "/assets";
+}
+
+// The browser has no directory next to an executable; PortConfig persists to
+// localStorage instead (see src/core/port_config.cpp), so this path is never opened.
+std::filesystem::path config_file_path(std::string_view) {
+    return "/bumpy_port.cfg";
+}
+
+// Nothing to verify: the assets ship inside the build, so they cannot differ from
+// the manifest. The source tree they are staged from is verified on the desktop
+// side by tests/cpp/asset_manifest_test.cpp.
+void warn_if_assets_changed(const std::filesystem::path&) {}
+
+#else
 
 bool has_asset_manifest(const std::filesystem::path& root) {
     return std::filesystem::is_regular_file(root / "config/original-assets.sha256");
@@ -123,6 +166,8 @@ void warn_if_assets_changed(const std::filesystem::path& asset_root) {
         std::cerr << "warning: could not verify original assets: " << error.what() << '\n';
     }
 }
+
+#endif  // __EMSCRIPTEN__
 
 void write_u16(std::ostream& output, std::uint16_t value) {
     output.put(static_cast<char>(value & 0xffU));
@@ -292,6 +337,7 @@ bumpy::IndexedFramebuffer render_menu_frame(const std::filesystem::path& asset_r
     return frame;
 }
 
+#ifndef __EMSCRIPTEN__
 // CPU nearest-neighbour reference upscale: each frame pixel becomes a k x k block.
 std::vector<std::uint8_t> nearest_upscale_rgba(const bumpy::IndexedFramebuffer& frame, int k) {
     const auto src = frame.to_rgba();
@@ -365,6 +411,7 @@ int present_parity(const std::filesystem::path& asset_root) {
     SDL_Quit();
     return failures == 0 ? 0 : 1;
 }
+#endif  // !__EMSCRIPTEN__
 
 int render_title_to_bmp(const std::filesystem::path& asset_root, const std::filesystem::path& out_path,
                         int level_value) {
@@ -685,6 +732,7 @@ int render_sprite_to_rgba(const std::filesystem::path& asset_root, int level_num
     return 0;
 }
 
+#ifndef __EMSCRIPTEN__
 // RGBA (rows top-to-bottom) -> 24-bit BMP, for GL readback dumps.
 void write_24bit_bmp_rgba(const std::filesystem::path& path,
                           const std::vector<std::uint8_t>& rgba, int w, int h) {
@@ -782,6 +830,7 @@ int render_3d_to_bmp(const std::filesystem::path& asset_root, std::string_view e
     SDL_Quit();
     return rc;
 }
+#endif  // !__EMSCRIPTEN__
 
 // Drive the in-level LevelGame on a board for a number of frames with a held
 // direction, dumping <prefix>NN.bmp every few frames (board art + live entities +
@@ -1020,6 +1069,10 @@ int run_sdl_menu(const std::filesystem::path& asset_root, int start_world, bumpy
         std::cerr << "warning: could not open audio device, running muted: " << error.what() << '\n';
     }
 
+    if (sdl_audio) {
+        sdl.set_audio_pump(&*sdl_audio);
+    }
+
     return sdl.run(app, renderer, settings_renderer, asset_root, std::move(world),
                    sprite_bank.bytes(), font, resources.splash.decoded_bytes(),
                    outro.decoded_bytes(), score_screen, frame, audio_engine, config, cfg_path);
@@ -1028,6 +1081,14 @@ int run_sdl_menu(const std::filesystem::path& asset_root, int start_world, bumpy
 }  // namespace
 
 int main(int argc, char* argv[]) {
+#ifdef __EMSCRIPTEN__
+    // A destructor rather than a call before each `return`: main() has a dozen exits (the
+    // offline dev tools) plus the catch below, and every one of them must reach the shell
+    // -- a crash that leaves the page dead is exactly the case worth covering.
+    struct GameExitNotice {
+        ~GameExitNotice() { bumpy_web_game_exited(); }
+    } game_exit_notice;
+#endif
     try {
         const auto asset_root =
             find_asset_root(argc > 0 ? std::string_view(argv[0]) : std::string_view{});
@@ -1124,11 +1185,13 @@ int main(int argc, char* argv[]) {
             // --render-sprite <level> <frame> <out.rgba>: one BUMSPJEU frame -> raw RGBA.
             return render_sprite_to_rgba(asset_root, std::stoi(argv[2]), std::stoi(argv[3]), argv[4]);
         }
+#ifndef __EMSCRIPTEN__
         if (argc == 6 && std::string_view(argv[1]) == "--render-3d") {
             // --render-3d <level> <MONDE.VEC> <board> <out.bmp>: headless diorama dump.
             return render_3d_to_bmp(asset_root, argv[0], std::stoi(argv[2]), argv[3],
                                     static_cast<std::size_t>(std::stoi(argv[4])), argv[5]);
         }
+#endif
         if (argc == 9 && std::string_view(argv[1]) == "--render-pav") {
             // --render-pav <pav> <pal|DEBUG> <out.bmp> <layout> <w> <h> <hdr>
             return render_pav(argv[2], argv[3], argv[4], argv[5], std::stoi(argv[6]),
@@ -1144,9 +1207,11 @@ int main(int argc, char* argv[]) {
             const int preset_id = static_cast<int>(std::stol(argv[2], nullptr, 0));
             return dump_sfx_to_wav(preset_id, argv[3]);
         }
+#ifndef __EMSCRIPTEN__
         if (argc == 2 && std::string_view(argv[1]) == "--present-parity") {
             return present_parity(asset_root);
         }
+#endif
         // The tool branches above always parse raw argc/argv (unaffected by --render3d).
         // Everything below instead consults `args` -- argv[1..] with any "--render3d"
         // filtered out -- so that flag can be combined with --start-world or the default

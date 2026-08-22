@@ -7,6 +7,7 @@
 #include "core/port_config.h"
 #include "game/app.h"
 #include "platform_gl3/gl_presenter.h"
+#include "platform_sdl3/sdl_audio.h"
 #include "resources/font.h"
 #include "resources/world_resources.h"
 #include "video/menu_renderer.h"
@@ -30,6 +31,10 @@ public:
     // SDL_Renderer fallback is in use (flat presentation only, no 3D mode). Consumed by
     // later tasks that gate 3D-mode input/UI on GL availability.
     [[nodiscard]] bool gl_available() const noexcept { return gl_ != nullptr; }
+
+    // Optional audio pump, driven once per loop iteration. Null means desktop (SDL's
+    // audio thread pulls instead) or a failed device open (the game runs muted).
+    void set_audio_pump(SdlAudio* audio) noexcept { audio_pump_ = audio; }
 
     // Drive the top-level App. Owns the current world's resources (`world`, by value) and
     // reloads them from `asset_root` whenever App requests a new world (pending_world).
@@ -59,6 +64,7 @@ private:
     // gl_ down BEFORE window_ is destroyed -- the GL context it owns must go while the
     // window that hosts it still exists.
     std::unique_ptr<GlPresenter> gl_;
+    SdlAudio* audio_pump_{};
 };
 
 }  // namespace bumpy

@@ -1,4 +1,3 @@
-#version 330 core
 layout(location = 0) in vec3 a_pos;    // GL space: x right, y up, board centre origin
 layout(location = 1) in vec2 a_uv;
 layout(location = 2) in float a_shade;

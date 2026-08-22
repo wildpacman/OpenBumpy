@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bumpy's Arcade Fantasy</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #c8c8c8;
+               font: 14px/1.4 "Courier New", monospace; overflow: hidden; }
+  #frame { position: fixed; inset: 0; }
+  /* The canvas needs an explicit CSS size, not just max-* caps. SDL3's Emscripten
+     backend works out the window size by setting the canvas to 1x1 and measuring its
+     CSS box (SDL_emscriptenvideo.c, Emscripten_CreateWindow): a result other than 1x1
+     means "CSS owns the size", and SDL adopts whatever it measured as the window size.
+     A canvas sized only by its content collapses under that probe, and SDL then sizes
+     the drawing buffer to the collapsed value -- the game renders correctly into a
+     buffer with no pixels in it. Filling the frame is also the presentation we want:
+     SDL_SetRenderLogicalPresentation letterboxes the 4:3 picture inside whatever it
+     gets, exactly as the desktop build does. */
+  canvas { background: #000; display: block; width: 100%; height: 100%;
+           image-rendering: pixelated; outline: none; }
+  #gate { position: fixed; inset: 0; z-index: 2; display: flex; gap: 1.5rem;
+          flex-direction: column; align-items: center; justify-content: center;
+          background: #000; cursor: pointer; }
+  #gate h1 { margin: 0; font-size: 24px; letter-spacing: .25em; color: #e0c060;
+             text-align: center; padding: 0 1rem; }
+  #gate p  { margin: 0; letter-spacing: .2em; }
+  #bar  { width: 240px; height: 6px; border: 1px solid #444; }
+  #fill { height: 100%; width: 0; background: #e0c060; transition: width .2s; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="frame"><canvas id="canvas" tabindex="-1"></canvas></div>
+<div id="gate">
+  <h1>BUMPY'S ARCADE FANTASY</h1>
+  <p id="status">LOADING</p>
+  <div id="bar"><div id="fill"></div></div>
+  <p id="hint" hidden>CLICK TO RESTART</p>
+</div>
+<script>
+var canvas = document.getElementById('canvas');
+var gate = document.getElementById('gate');
+var statusLine = document.getElementById('status');
+var bar = document.getElementById('bar');
+var hint = document.getElementById('hint');
+var fill = document.getElementById('fill');
+var ready = false;
+var ended = false;
+
+// Arrows, space and Tab must reach the game rather than scrolling the page or moving
+// focus off the canvas -- Tab is the settings-overlay key.
+var swallowed = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab'];
+window.addEventListener('keydown', function (e) {
+  if (swallowed.indexOf(e.key) !== -1) { e.preventDefault(); }
+}, true);
+
+// Fullscreen is requested on the document element from C++ (platform_set_fullscreen in
+// src/platform_sdl3/sdl_app.cpp), which leaves the canvas sized by this page's CSS -- 100%
+// of a fixed, inset-0 frame -- rather than by SDL's Emscripten fullscreen strategy, whose
+// idea of the screen ignores page zoom. SDL re-measures the canvas on a window resize
+// event and nothing else, and entering or leaving fullscreen does fire one, but not
+// dependably after the new layout has settled. Nudge it once more on the next frame so the
+// drawing buffer cannot be left a frame behind the box it is drawn into. SDL's handler
+// only re-reads sizes, so a repeat is free.
+document.addEventListener('fullscreenchange', function () {
+  requestAnimationFrame(function () { window.dispatchEvent(new Event('resize')); });
+});
+
+var Module = {
+  canvas: canvas,
+  print: function (text) { console.log(text); },
+  printErr: function (text) { console.error(text); },
+  setStatus: function (text) {
+    var progress = /([0-9.]+)\/([0-9.]+)/.exec(text);
+    if (progress) {
+      fill.style.width = (100 * parseFloat(progress[1]) / parseFloat(progress[2])) + '%';
+    }
+  },
+  onRuntimeInitialized: function () {
+    ready = true;
+    fill.style.width = '100%';
+    statusLine.textContent = 'CLICK TO PLAY';
+  },
+  // Called from main() when the run loop ends (src/app/main.cpp). EXIT_RUNTIME is 0, so
+  // the page outlives the game: without this the player would be looking at a dead canvas
+  // with the gate already hidden. Bring the gate back as a sign-off rather than an error.
+  onGameExit: function () {
+    ended = true;
+    canvas.style.display = 'none';  // SDL leaves the last frame painted; do not freeze on it
+    statusLine.textContent = 'THANKS FOR PLAYING';
+    bar.hidden = true;
+    hint.hidden = false;
+    gate.style.display = 'flex';
+  }
+};
+
+// main() is held back (-sINVOKE_RUN=0) until this click: browsers refuse to start audio
+// outside a user gesture, and the audio device opens during SdlApp construction.
+gate.addEventListener('click', function () {
+  // After the game has exited, restart by reloading: SDL_Quit() has already run and a
+  // second Module.callMain([]) into a torn-down runtime is untested. A fresh page is the
+  // only restart we can stand behind, and settings survive it (they live in localStorage).
+  if (ended) { location.reload(); return; }
+  if (!ready) { return; }
+  gate.style.display = 'none';
+  canvas.focus();
+  Module.callMain([]);
+});
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>

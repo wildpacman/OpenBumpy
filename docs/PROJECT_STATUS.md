@@ -1,9 +1,10 @@
 # Bumpy Port — Project Status
 
-Source of truth for new sessions. Last updated: 2026-07-08 (**3D render mode
-implemented** — an optional OpenGL 3.3 diorama presentation of the in-level
-playfield, toggled by Alt+3 / `--render3d` / `bumpy_port.cfg`; see "3D render
-mode" below. Prior: audio / sound system implemented).
+Source of truth for new sessions. Last updated: 2026-08-22 (**web port
+(browser), stage 2 done** — the diorama now runs in the browser on a WebGL2
+(GLES 3.0) context; the mode is called DIORAMA in the UI on both platforms.
+See the Roadmap entry below and `docs/web-acceptance.md`. Prior: web port
+(browser), stage 1 implemented).
 
 ## Goal
 
@@ -35,7 +36,10 @@ only a platform adapter.
 - `video` — palette and frame composition over an indexed 320×200 buffer.
 - `audio` — music, instrument bank, effects.
 - `video3d` — CPU-side 3D diorama scene model (wall/slab/billboard geometry, blur).
-- `platform_gl3` — OpenGL 3.3 core presenter + the diorama's GL programs/textures.
+- `platform_gl3` — the GL presenter + the diorama's GL programs/textures,
+  built for both platforms: OpenGL 3.3 core on desktop, GLES 3.0 through
+  WebGL2 in the browser. `SDL_Renderer` is the fallback when no usable GL
+  context exists on either platform (see the web-port Roadmap entry below).
 - `platform_sdl3` — window, input, timing, presentation.
 
 ## Roadmap
@@ -66,6 +70,32 @@ only a platform adapter.
   (dark blue), not the brown MONDE map palette. Physics, collision, win/loss and
   the map's score/lives HUD are all implemented. The sprite-frame decoder from
   Stage 2 is the reusable foundation for gameplay sprites.
+- **Web port (browser), stage 1 — DONE.** The classic flat presentation builds
+  for WebAssembly with Emscripten and runs from a static URL, reusing the
+  `SDL_Renderer` fallback path (no GL compiled). Assets are baked into the
+  build; settings persist to `localStorage`; 4:3 only. Stage 2 — a WebGL2
+  context, `-sGL_ENABLE_GET_PROC_ADDRESS`, and the seven GLSL sources ported
+  to GLES 3.00, which would restore the 3D diorama (`Alt+3`) — is now done
+  (see the entry below); the port's GL surface is 56 distinct functions in
+  total, all core GLES 3.0: 39 loaded per-context through
+  `SDL_GL_GetProcAddress` (the `BUMPY_GL33_FUNCS` X-macro in `gl33.h`) plus
+  17 GL 1.1 entry points called directly — 16 in `src/platform_gl3/*.cpp` and
+  `glScissor` in `src/platform_sdl3/sdl_app.cpp`, which clears the diorama's
+  letterbox bars (see the spec's "What stage 2 has to do"); it would also
+  extend to HD (`Alt+H`)
+  if the separate, currently-unmerged `feat/hd-render-mode` branch is ever
+  merged into desktop first. Verified: the desktop build + full Catch2 suite
+  are unaffected and the web build itself compiles and runs from a static
+  URL; the in-browser playthrough is still pending (see
+  `docs/web-acceptance.md`). See
+  `docs/superpowers/specs/2026-08-20-web-port-classic-design.md`.
+- **Web port (browser), stage 2 — DONE.** The diorama runs in the browser on a
+  WebGL2 (GLES 3.0) context. The GL sources needed no porting; the GLSL version
+  line moved into `compile_shader` so one shader body serves both dialects. The
+  mode is now called DIORAMA in the UI on both platforms; `Alt+3` and the
+  `render3d` config key are unchanged. Verified: both builds compile warning-free
+  and the desktop suite is green; the in-browser look is still pending (see
+  `docs/web-acceptance.md`).
 
 ## Current state
 
@@ -900,8 +930,9 @@ plan: `docs/superpowers/specs/2026-07-08-3d-render-mode-design.md`,
   x2/x4 integer scales and compares byte-for-byte against the CPU nearest-neighbor
   reference (6/6 PASS, exit 0). **Fallback:** if the window can't get an OpenGL 3.3
   core context, the port silently drops back to the original `SDL_Renderer` path
-  (never fatal); 3D mode is simply unavailable (`Alt+3` logs "3D mode unavailable:
-  no OpenGL 3.3").
+  (never fatal); the diorama is simply unavailable (`Alt+3` logs "diorama
+  unavailable: no usable GL context" — deliberately platform-neutral, since in a
+  browser the missing thing is WebGL2, not OpenGL 3.3).
 - **Alt+3 diorama** (in-level only): the board's DEC mural becomes a blurred back
   wall (baked gaussian DOF, `kWallBlurSigma`), BUM-plane sprites are classified by
   their own opaque silhouette — solid rectangles (lanes, blocks) become **extruded
@@ -945,7 +976,7 @@ plan: `docs/superpowers/specs/2026-07-08-3d-render-mode-design.md`,
   and positions are completely untouched by any of this; the flat 320x200
   composition still runs every frame (even in 3D mode) so the screen-change darken
   and the two presentation paths stay trivially in sync.
-- **225 C++ tests pass** (82544 assertions) covering the GL helpers, mat4/blur math,
+- **254 C++ tests pass** (82783 assertions) covering the GL helpers, mat4/blur math,
   scene decomposition (slab-vs-billboard classification, live quad building),
   slab/billboard face geometry, the renderer's shader reload path, and the config
   parser/serializer; originals verify clean. Verified by eye: the parity dump, the

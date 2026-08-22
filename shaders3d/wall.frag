@@ -1,4 +1,3 @@
-#version 330 core
 in vec2 v_uv;
 in float v_shade;
 in vec3 v_world;

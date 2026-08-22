@@ -94,6 +94,46 @@ files only) into `dist/` — what the GitHub Releases build is made from (it
 renames the exe to `Bumpy3D.exe` for that package; the build output itself is
 still `bumpy_port.exe`, matching the CMake project name).
 
+## Browser build
+
+The port also builds for the browser with Emscripten — the classic (flat,
+original-look) presentation and the 3D diorama both.
+
+Prerequisites: [emsdk](https://emscripten.org/docs/getting_started/downloads.html)
+(tested with 6.0.8). Like `windows-debug`'s hardcoded generator, the
+`web-release` preset in `CMakePresets.json` hardcodes the emsdk toolchain file
+and Ninja paths for the author's machine — adjust them to yours.
+
+```
+cmake --preset web-release
+cmake --build --preset web-release
+python -m http.server 8000 --directory build/web-release
+```
+
+Then open `http://localhost:8000/bumpy.html`.
+
+The build bakes the 47 original data files and the five GLSL sources the
+diorama reads at runtime into `bumpy.data` (604,662 bytes total), so
+`build/web-release/` is a self-contained static site — no special server
+headers required (the port deliberately avoided `-sPROXY_TO_PTHREAD`, which
+would have needed cross-origin isolation).
+
+Differences from the desktop build, all deliberate:
+
+- 4:3 only — no ASPECT row and no `Alt+A`.
+- Settings persist to `localStorage` instead of `bumpy_port.cfg`.
+
+The 3D diorama is compiled into the browser build too, against a WebGL2
+context, and the settings overlay calls it DIORAMA on both platforms. What it
+does in an actual browser has **not** been verified: nobody has loaded the page
+and looked at it yet, so whether the diorama renders correctly, runs at a
+playable frame rate, or degrades cleanly on a browser without WebGL2 is all
+still open. Section 8 of [`docs/web-acceptance.md`](docs/web-acceptance.md) is
+the checklist for settling it.
+
+High scores stay session-only on both platforms, exactly as in the original —
+that's not a difference, just worth restating.
+
 ## Controls
 
 | Key | Action |

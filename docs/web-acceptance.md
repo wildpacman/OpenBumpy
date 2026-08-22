@@ -1,7 +1,8 @@
 # Bumpy web port — acceptance checklist
 
 Branch `feat/web-port`. Everything here needs a human at a browser, which is why
-none of it is done: no subagent drove your browser after you stopped it twice.
+almost none of it is done: no subagent drove your browser after you stopped it
+twice. The exception is section 9, which was run and passed on 2026-08-22.
 
 Below, **carried** marks a check that was deferred from a specific task rather
 than merely being part of the routine list — those are the ones where nobody has
@@ -20,7 +21,7 @@ python -m http.server 8000 --directory build/web-release
 Then open <http://localhost:8000/bumpy.html>.
 
 Expected artifacts in `build/web-release/`: `bumpy.html`, `bumpy.js`,
-`bumpy.wasm` (**~2.0 MB**, 2,033,725 bytes — stage 1 measured ~1.78 MB; most of
+`bumpy.wasm` (**~2.0 MB**, 2,033,757 bytes — stage 1 measured ~1.78 MB; most of
 the growth is `-fexceptions`, which stage 2 needed to make the WebGL2-absent
 fallback and every other `catch` in the port actually degrade instead of
 aborting the tab, see section 8), `bumpy.data` (**604,662 bytes** exactly —
@@ -103,14 +104,15 @@ the main stack unwound is a corruption hazard. The buffer targets ~100 ms.
 - [ ] Game over screen, and the DESSFIN.VEC outro
 - [ ] **All nine worlds load** — enter each via its password (Tab → PASSWORDS
       lists the codes for worlds 2-9)
-- [ ] `Alt+Enter` enters and leaves fullscreen, and the picture fills the screen
+- [x] `Alt+Enter` enters and leaves fullscreen, and the picture fills the screen
       height with black bars on the left and right only — correct 4:3
-      letterboxing on a 16:10 monitor. **Test this with DevTools closed and the
-      browser zoom at 80%**, and see section 9: at 100% zoom every version of
-      this code looks right, including the broken ones, and opening DevTools
-      used to repair the bug while you looked at it. (An earlier revision of this
-      line blamed docked DevTools for shrinking the viewport and called it "not a
-      bug". That was wrong twice over, and is what let the defect sit unfixed.)
+      letterboxing on a 16:10 monitor. **Done 2026-08-22**, at 80% browser zoom
+      with DevTools closed, which is the only condition under which the bug this
+      finally caught was visible at all. Re-test it the same way: at 100% zoom
+      every version of this code looks right, including the broken ones. See
+      section 9. (An earlier revision of this line blamed docked DevTools for
+      shrinking the viewport and called it "not a bug". That was wrong twice
+      over, and is what let the defect sit unfixed through two attempts.)
 - [ ] **Quitting signs off instead of dying.** Tab → QUIT (and separately,
       Escape from the menu) must bring back the gate reading **THANKS FOR
       PLAYING / CLICK TO RESTART**. Clicking it reloads into a fresh game with
@@ -217,7 +219,7 @@ Worth a moment on cost, not correctness: the web build now compiles with
 degrades instead of aborting the tab — a pre-existing stage 1 gap that stage 2
 found only because it went looking for it. That bought correctness at roughly
 203 KB of wasm, an ~11% increase over the pre-`-fexceptions` build; the
-current build measures **2,033,725 bytes** total (see section 1).
+current build measures **2,033,757 bytes** total (see section 1).
 
 Worth knowing, but there is nothing here to decide: the smaller, faster
 alternative — `-fwasm-exceptions`, native Wasm exception handling — is not
@@ -241,18 +243,17 @@ decision for the owner to make. It is not one; the option does not exist here.)
 
 ---
 
-## 9. Open right now — the fullscreen geometry, second attempt
+## 9. Fullscreen geometry — FIXED and verified in a browser (2026-08-22)
 
-**Status: the first fix (`27c6177`) did not resolve the symptom in your browser.
-The web build no longer uses SDL's fullscreen at all; that is what needs looking
-at now.** This is the one thing to do first in a new session.
+Kept because it took three attempts and the failure mode is a trap anyone would
+fall into again.
 
-### What is actually wrong
+### What was wrong
 
-Entering fullscreen through `SDL_SetWindowFullscreen` leaves **three different
+Entering fullscreen through `SDL_SetWindowFullscreen` left **three different
 answers to "how big is the screen"** live at the same time:
 
-| number | comes from | value measured here |
+| number | comes from | measured |
 |---|---|---|
 | canvas element + its inline CSS | `screen.width/height`, via Emscripten's fullscreen strategy | 1646x1029 |
 | canvas drawing buffer | `innerWidth/innerHeight`, via `Emscripten_HandleResize` | 2058x1286 |
@@ -260,25 +261,26 @@ answers to "how big is the screen"** live at the same time:
 
 `screen.*` is expressed in zoom-independent pixels; the layout viewport a
 fullscreen page gets follows the page zoom. **At 100% zoom all three agree and
-nothing looks wrong. At 80% they differ by exactly 1.25x** — which is why this
-reads as a ghost rather than a bug, and why it survived two earlier attempts.
-Chain of evidence, one recorded line:
+nothing looks wrong. At 80% they differ by exactly 1.25x.** That is the whole
+bug, and it is why it read as a ghost:
 
-```
-sdl 1646x1029 | px 1646x1029 | canvas 2058x1286 | screen 1646x1029 | sdlfs 1
-```
+- invisible at the one zoom level most people never leave, and
+- opening DevTools fires the resize that repairs one of the three, so the act of
+  looking at it fixed it. Two attempts were derailed by exactly that — one of
+  them concluded "docked DevTools shrinks the viewport, no defect", which was
+  wrong and cost a round.
 
-`27c6177` pointed `glViewport` at the canvas instead of at SDL's number. That
-corrected the one consumer that had been reading the wrong value — but the
-divergence itself was untouched, and so was every other consumer of it
-(`SDL_SetRenderLogicalPresentation` on the no-WebGL2 fallback path, and SDL's
-own idea of whether the window is fullscreen at all).
+`27c6177` pointed `glViewport` at the canvas instead of at SDL's number. That was
+a real correction to one consumer of the bad number, and it could not finish the
+job, because the divergence itself was untouched — as were the canvas's own DOM
+dimensions and the `SDL_Renderer` fallback path, which takes both its logical
+presentation and its GLES viewport from SDL's window size.
 
-### What changed now
+### The fix
 
 The web build asks the **DOM** for fullscreen, on the document element, and never
 lets Emscripten's fullscreen strategy run (`platform_set_fullscreen` /
-`platform_fullscreen` in `src/platform_sdl3/sdl_app.cpp`). Then:
+`platform_fullscreen`, `src/platform_sdl3/sdl_app.cpp`). Then:
 
 - the canvas keeps its stylesheet size — 100% of a fixed, inset-0 frame — so
   nothing writes an inline pixel size onto it,
@@ -287,62 +289,49 @@ lets Emscripten's fullscreen strategy run (`platform_set_fullscreen` /
   rect** — the one number that is true by definition — and carries both the
   window size *and* the drawing buffer to it.
 
-One source, no zoom term. `gl_drawable_size` from `27c6177` stays: it is correct
-by construction and costs nothing.
+One source, no zoom term. The shell dispatches one extra `resize` on the frame
+after a `fullscreenchange`, because SDL re-measures on resize events and nothing
+else, and the one the browser fires is not dependably after the new layout has
+settled. `gl_drawable_size` from `27c6177` stays: correct by construction, free,
+and a cheap guard against the class of bug recurring.
 
-The shell also dispatches one extra `resize` on the frame after a
-`fullscreenchange`, because SDL re-measures on resize events and nothing else,
-and the one the browser fires is not dependably after the new layout has settled.
+### The evidence it works
 
-### How to verify
+Measured in Chrome at 80% page zoom on a 175%-scaled display (`dpr 1.4`), which
+is the condition that reproduced the bug — one recorded fullscreen frame:
 
-The diagnostic now prints itself **onto the page**, so DevTools never has to be
-open — which matters, because opening them is what made the bug vanish.
+```
+sdl 2058x1286 | px 2058x1286 | draw 2058x1286 | canvas 2058x1286 |
+rect 2058x1286 @0,0 | inner 2058x1286 | screen 1646x1029 | domfs 1
+```
 
-1. Rebuild, serve, and **hard-reload** (Ctrl+Shift+R — a cached `bumpy.wasm` is
-   the one thing that would make all of this meaningless).
-2. Click to play, then `Alt+Enter`. Stay a few seconds, `Alt+Enter` back out.
-3. The panel appears at the top of the page by itself on leaving fullscreen
-   (`F9` toggles it, clicking it copies it). Send that text.
+Every number equal, `screen` still disagreeing by the zoom factor and no longer
+reaching anything. Confirmed by eye at the same time: the picture fills the
+screen, diorama on.
 
-**Pass criterion, by eye:** the picture fills the screen height with black bars
-on the left and right only, and is centred. **In the panel:** on the `domfs 1`
-lines, `vp` (the rect actually handed to `glViewport`), `canvas`, `rect` and
-`inner` all agree, and `rect @0,0`.
+### If fullscreen ever misbehaves again
 
-Set the browser zoom to 80% before testing — at 100% every version of this code
-looks right, including the broken ones.
+Reproduce at **80% browser zoom with DevTools closed** — at 100% every version of
+this code looks right, including the broken ones. Then check, in order: does the
+canvas have an inline `style.width` (something re-enabled SDL's strategy); does
+`getBoundingClientRect()` match `canvas.width/height` (SDL did not re-measure —
+suspect the resize nudge in `src/web/shell.html`); does the drawn viewport match
+the canvas (`gl_drawable_size` fell back to SDL).
 
-### If it is still wrong
+Two loose ends, recorded rather than chased, because neither changes anything now:
 
-The panel says which part failed, and each shape means something different:
-
-- `canvas` != `rect` — SDL did not re-measure; the resize nudge in
-  `src/web/shell.html` is not landing.
-- `vp` != `canvas` — the viewport is not tracking the drawing buffer, i.e.
-  `gl_drawable_size` is falling back to `SDL_GetWindowSizeInPixels`.
-- everything agrees but the picture is still displaced — the viewport is not
-  what is displacing it, and the next place to look is `scene_frustum` in
-  `src/video3d/` (diorama on) or `compute_letterbox_viewport` (diorama off).
-- `build` in the panel is not today — the browser served a cached wasm and
-  nothing else in the panel means anything.
-
-### When it passes
-
-Strip the instrumentation. Every piece of it is marked, so
-`grep -rn TEMPORARY src/` lists exactly what to remove and nothing else: the
-diagnostic block and build stamp in `src/platform_sdl3/sdl_app.cpp`,
-`gl_last_flat_viewport` in `src/platform_gl3/gl_presenter.{h,cpp}`, and the
-`#diag` panel in `src/web/shell.html`. Keep the fullscreen change, the
-`fullscreenchange` resize nudge, and `gl_drawable_size` — those are the fix.
-
-### Known and separate, not this bug
-
-The drawing buffer is sized in CSS pixels, not device pixels — the window is
-created without `SDL_WINDOW_HIGH_PIXEL_DENSITY`, so SDL's `pixel_ratio` is
-pinned to 1.0. On a display with OS scaling above 100% the browser upscales the
-canvas, which costs sharpness but not geometry. That is the same in a window as
-in fullscreen, and was the same before this change.
+- Which of the two mechanisms actually produced the *observed* bottom-left
+  displacement was never pinned down. `emscripten_set_canvas_element_size` does
+  **not** clear the inline CSS size in this emsdk (the comment in SDL's own
+  source saying "set_canvas_size unsets this" is stale), so the canvas box may
+  have stayed at 80% — but the Fullscreen API's UA stylesheet forces
+  `width/height: 100% !important` on the fullscreen element, which should
+  override it, leaving GL's bottom-left origin as the cause. Both are gone.
+- `emscripten_request_fullscreen("html", true)` would be an alternative to the
+  direct DOM call, keeping Emscripten's defer-until-next-eligible-input
+  machinery. It is not needed here: the loop handles the keypress well inside the
+  browser's transient activation window, which is the same thing the SDL path
+  relied on. Worth remembering if a browser ever tightens that.
 
 ## What was verified without you
 

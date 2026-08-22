@@ -37,21 +37,9 @@ void main() {
 }
 )GLSL";
 
-// TEMPORARY, with the fullscreen diagnostic: the rect the last flat present handed to
-// glViewport. Recorded rather than recomputed so the diagnostic reports what the frame
-// really did instead of what it ought to have done.
-bumpy::Viewport last_flat_viewport{};
-
 }  // namespace
 
 namespace bumpy {
-
-void gl_last_flat_viewport(int* x, int* y, int* w, int* h) {
-    *x = last_flat_viewport.x;
-    *y = last_flat_viewport.y;
-    *w = last_flat_viewport.w;
-    *h = last_flat_viewport.h;
-}
 
 GlPresenter::GlPresenter(SDL_Window* window) : window_(window) {
     context_ = SDL_GL_CreateContext(window_);
@@ -149,7 +137,6 @@ void GlPresenter::draw_flat(const IndexedFramebuffer& frame, int target_w, int t
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     const Viewport vp = compute_letterbox_viewport(target_w, target_h, 320, logical_h);
-    last_flat_viewport = vp;  // TEMPORARY: read by the fullscreen diagnostic
     glViewport(vp.x, vp.y, vp.w, vp.h);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_BLEND);

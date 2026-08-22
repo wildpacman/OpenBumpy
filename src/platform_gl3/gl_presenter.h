@@ -17,18 +17,14 @@ namespace bumpy {
 // Size of the actual GL framebuffer, which is what glViewport must match.
 //
 // This is deliberately NOT SDL_GetWindowSizeInPixels. On the web the framebuffer is the
-// canvas backing store, and SDL3's Emscripten backend does not always agree with it: on
-// fullscreen entry it takes the window size from the canvas's CSS inline style, which its
-// fullscreen strategy fills in from screen.width/height. Those ignore page zoom while the
-// backing store follows the zoomed layout viewport, so at any zoom but 100% the two
-// diverge -- and a viewport smaller than the framebuffer lands bottom-left, because that
-// is where GL's origin is. Ask the canvas directly instead.
+// canvas backing store, and SDL's window size is a derived number that has been seen to
+// disagree with it -- it did so on every fullscreen entry until the web build stopped
+// routing fullscreen through SDL (platform_set_fullscreen in
+// src/platform_sdl3/sdl_app.cpp). A viewport smaller than the framebuffer lands
+// bottom-left, because that is where GL's origin is, which is a quiet and confusing way
+// to fail. Asking the canvas costs nothing and cannot be wrong by construction, so it
+// stays even though the divergence that motivated it is gone.
 void gl_drawable_size(SDL_Window* window, int* w, int* h);
-
-// TEMPORARY, for the fullscreen diagnostic in src/platform_sdl3/sdl_app.cpp: the
-// glViewport rect the last flat present actually used, as {x, y, w, h}. Reverted with
-// the rest of the instrumentation.
-void gl_last_flat_viewport(int* x, int* y, int* w, int* h);
 
 class GlPresenter {
 public:

@@ -69,10 +69,10 @@ SettingsEvent SettingsOverlay::update(const MenuInput& input, bool render3d_avai
             return SettingsEvent::none;
         case SettingsPage::video:
             switch (cursor_row_) {
-#ifdef __EMSCRIPTEN__
-            case 0: return SettingsEvent::toggle_fullscreen;
-#else
             case 0: return render3d_available ? SettingsEvent::toggle_3d : SettingsEvent::none;
+#ifdef __EMSCRIPTEN__
+            case 1: return SettingsEvent::toggle_fullscreen;
+#else
             case 1: return SettingsEvent::toggle_aspect;
             case 2: return SettingsEvent::toggle_fullscreen;
 #endif

@@ -572,6 +572,50 @@ int SdlApp::run(App& app, const MenuRenderer& menu_renderer,
     };
 
     while (running) {
+#ifdef __EMSCRIPTEN__
+        // TEMPORARY DIAGNOSTIC -- remove once the fullscreen offset is understood.
+        // Both sides of the C++/canvas boundary in one line. The GL paths size their
+        // viewport from SDL_GetWindowSizeInPixels, but the window is created without
+        // SDL_WINDOW_HIGH_PIXEL_DENSITY, which pins SDL's pixel_ratio to 1.0 -- so that
+        // call returns the CSS size despite its name. If the canvas's actual drawing
+        // buffer differs, the viewport covers only part of the framebuffer, and GL's
+        // bottom-left origin would put the picture exactly where it is being seen.
+        {
+            static int diag_frame = 0;
+            if (diag_frame++ % 35 == 0) {
+                int lw = 0, lh = 0, pw = 0, ph = 0;
+                SDL_GetWindowSize(window_, &lw, &lh);
+                SDL_GetWindowSizeInPixels(window_, &pw, &ph);
+                int dw = 0, dh = 0;
+                gl_drawable_size(window_, &dw, &dh);
+                const int sdl_fs =
+                    (SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN) ? 1 : 0;
+                // Recorded into localStorage as well as the console, because the bug only
+                // appears with DevTools CLOSED -- opening them to read the log makes it go
+                // away. The ring survives the reproduction, so it can be read afterwards.
+                MAIN_THREAD_EM_ASM({
+                    try {
+                        var c = Module.canvas;
+                        var line = 'sdl ' + $0 + 'x' + $1 + ' | px ' + $2 + 'x' + $3 + ' | draw ' + $6 + 'x' + $7 +
+                                   ' | canvas ' + c.width + 'x' + c.height +
+                                   ' | rect ' + Math.round(c.getBoundingClientRect().width) +
+                                   'x' + Math.round(c.getBoundingClientRect().height) +
+                                   ' | inner ' + innerWidth + 'x' + innerHeight +
+                                   ' | screen ' + screen.width + 'x' + screen.height +
+                                   ' | dpr ' + devicePixelRatio +
+                                   ' | domfs ' + (document.fullscreenElement ? 1 : 0) +
+                                   ' | sdlfs ' + $4 + ' | diorama ' + $5;
+                        console.log('[diag] ' + line);
+                        var prev = localStorage.getItem('bumpy_diag') || String();
+                        var lines = prev ? prev.split('\n') : [];
+                        lines.push(line);
+                        while (lines.length > 80) { lines.shift(); }
+                        localStorage.setItem('bumpy_diag', lines.join('\n'));
+                    } catch (e) {}
+                }, lw, lh, pw, ph, sdl_fs, render3d ? 1 : 0, dw, dh);
+            }
+        }
+#endif
         // The App requested a different world (start, world-advance, or game-over reset):
         // swap the world's disk resources and tell App the new board count. This runs
         // before any render, and on a screen change the darken (begun the prior frame)

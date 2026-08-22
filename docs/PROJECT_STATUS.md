@@ -81,10 +81,7 @@ only a platform adapter.
   `SDL_GL_GetProcAddress` (the `BUMPY_GL33_FUNCS` X-macro in `gl33.h`) plus
   17 GL 1.1 entry points called directly — 16 in `src/platform_gl3/*.cpp` and
   `glScissor` in `src/platform_sdl3/sdl_app.cpp`, which clears the diorama's
-  letterbox bars (see the spec's "What stage 2 has to do"); it would also
-  extend to HD (`Alt+H`)
-  if the separate, currently-unmerged `feat/hd-render-mode` branch is ever
-  merged into desktop first. Verified: the desktop build + full Catch2 suite
+  letterbox bars (see the spec's "What stage 2 has to do"). Verified: the desktop build + full Catch2 suite
   are unaffected and the web build itself compiles and runs from a static
   URL; the in-browser playthrough is still pending (see
   `docs/web-acceptance.md`). See
@@ -911,9 +908,10 @@ beeper SFX). Design + plan: `docs/superpowers/specs/2026-07-06-audio-sound-syste
 
 ## Stage 3 3D render mode (2026-07-08)
 
-An optional **"diorama" 3D presentation** of the in-level playfield is implemented,
-independent of the earlier `feat/hd-render-mode` xBRZ work (that branch stays
-parked). The same original assets render pixel-for-pixel, arranged in a real 3D
+An optional **"diorama" 3D presentation** of the in-level playfield is implemented.
+It was always independent of the earlier `feat/hd-render-mode` xBRZ experiment,
+which has since been **abandoned and deleted** (2026-08-22) -- see the note at the
+end of this file. The same original assets render pixel-for-pixel, arranged in a real 3D
 scene with depth, light, and shader effects — no upscaling, no new art. Design +
 plan: `docs/superpowers/specs/2026-07-08-3d-render-mode-design.md`,
 `docs/superpowers/plans/2026-07-08-3d-render-mode.md`.
@@ -1027,3 +1025,20 @@ The menu is complete: **PLAY**, **HIGH-SCORE** (see "Stage 3 high-score screen")
 **LEVEL** difficulty (see "Stage 3 difficulty selection"), and **PASSWORD** (see
 "Stage 3 password screen") are all implemented. The between-worlds password display
 (`FUN_1000_0d9d`) is implemented too.
+
+## Abandoned: HD render mode (`feat/hd-render-mode`, deleted 2026-08-22)
+
+An `Alt+H` layered-xBRZ upscaling mode, developed to a merge-ready state in July
+2026 and never merged, because nobody ever looked at it on screen. Dropped at the
+owner's decision -- the diorama covers what he wanted from a "better-looking" mode,
+and upscaled sprites were never the point of a port whose premise is the original
+1993 art unchanged.
+
+Deleting it also closed a licensing problem that merging it would have forced:
+the branch vendored **xBRZ, which is GPLv3**, into an MIT-licensed project. That
+code never reached master.
+
+The 12 commits are unreferenced but not yet collected. Until git prunes them,
+`git branch feat/hd-render-mode 0af459cfcd23f0dd34f2e686164b21f068e60e7a`
+brings the branch back. Recorded because a deleted local-only branch has no other
+trace: it was never pushed anywhere.

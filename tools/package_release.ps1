@@ -2,23 +2,23 @@ $ErrorActionPreference = "Stop"
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $version = "v0.1.0"
-$stageName = "Bumpy3D-$version-win64"
+$stageName = "OpenBumpy-$version-win64"
 
 Push-Location $root
 try {
     $buildDir = "build/windows-debug/Release"
-    $exe = Join-Path $buildDir "bumpy_port.exe"
+    $exe = Join-Path $buildDir "OpenBumpy.exe"
     $dll = Join-Path $buildDir "SDL3.dll"
 
     if (-not (Test-Path $exe)) {
-        throw "bumpy_port.exe not found at $exe -- run: cmake --build --preset windows-release"
+        throw "OpenBumpy.exe not found at $exe -- run: cmake --build --preset windows-release"
     }
 
     $stage = "dist/$stageName"
     if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" -Confirm:$false }
     New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
-    Copy-Item $exe (Join-Path $stage "Bumpy3D.exe")
+    Copy-Item $exe $stage
     Copy-Item $dll $stage
     Copy-Item -Recurse "shaders3d" (Join-Path $stage "shaders3d")
     Copy-Item -Recurse "config" (Join-Path $stage "config")

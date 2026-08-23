@@ -1,5 +1,6 @@
-// Windows application icon for bumpy_port. Explorer/taskbar use the icon group
+// Windows application icon for OpenBumpy. Explorer/taskbar use the icon group
 // with the lowest resource id, so this claims id 1. bumpy.ico is a multi-size
-// (16..256) pixel-art render of the Bumpy hero sprite, built by
-// tools/re/build_icon.py from a BUMSPJEU frame -- see that script's header.
+// (16..256) letterboxed render of the game's own BUMPRESE.VEC startup splash
+// (Bumpy's face peeking over the ledge), built by
+// tools/re/build_splash_icon.py -- see that script's header.
 1 ICON "bumpy.ico"

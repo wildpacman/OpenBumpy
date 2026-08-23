@@ -123,7 +123,7 @@ functions), DOSBox-X reference harness.
   tracking `cursor_row`. (BUMSPJEU.BIN itself is the gameplay bumper sprites —
   see `analysis/generated/sprite_sheet.png`; same frame format, reuse in Stage 3.)
 - Menu state machine (`src/game/menu`) and SDL3 shell (`src/platform_sdl3`).
-- `bumpy_port.exe` renders the authentic title + cursor and runs the menu window;
+- `OpenBumpy.exe` renders the authentic title + cursor and runs the menu window;
   31 C++ test cases pass. `--render-title [out.bmp]` dumps the menu;
   `--dump-title-raw out.bin` dumps the raw decoded title bytes.
 
@@ -147,7 +147,7 @@ functions), DOSBox-X reference harness.
   **N×194-byte boards** (matching N), each = 3×48-byte entity tables + 6 params
   (`75d0 = BUM+2+board*0xc2`, copied by `FUN_1000_32b0`). `D6.BUM`/`D9.BUM` ship
   **raw/pre-decoded**. Board counts verified: (12182−2)/812 = (2912−2)/194 = 15.
-- New dev/inspection flags on `bumpy_port.exe`: `--decode-vec`, `--render-screen`,
+- New dev/inspection flags on `OpenBumpy.exe`: `--decode-vec`, `--render-screen`,
   `--render-pav` (see spec).
 
 **Stage 3 board module + renderer (builds and runs on master):**
@@ -465,23 +465,23 @@ functions), DOSBox-X reference harness.
 
 ```powershell
 cmake --build --preset windows-debug
-& build/windows-debug/Debug/bumpy_port.exe                       # menu window
-& build/windows-debug/Debug/bumpy_port.exe --render-title out.bmp [0|1|2]  # headless menu dump (optional LEVEL difficulty)
-& build/windows-debug/Debug/bumpy_port.exe --decode-vec D1.PAV out.bin          # decode any VEC/PAV/DEC/BUM
-& build/windows-debug/Debug/bumpy_port.exe --render-screen MONDE1.VEC out.bmp   # 320x200 screen-format VEC
-& build/windows-debug/Debug/bumpy_port.exe --render-pav D1.PAV MONDE1.VEC out.bmp planeseq 320 192 6
-& build/windows-debug/Debug/bumpy_port.exe --render-board 1 MONDE1.VEC 0 board.bmp        # static board (add 'map' to overlay the world-select screen)
-& build/windows-debug/Debug/bumpy_port.exe --render-map 1 MONDE1.VEC map.bmp              # world-map screen (MONDE1 + Bumpy avatar on node 1)
-& build/windows-debug/Debug/bumpy_port.exe --render-play 1 MONDE1.VEC 0 leftfire play     # drive board 0 with an input (none/up/down/left/right/fire/leftfire), dump playNN.bmp + ball/spring log
-& build/windows-debug/Debug/bumpy_port.exe --render-jump 6 MONDE1.VEC jump_              # fire-to-enter cloud-jump animation on a node, dump jump_NN.bmp
-& build/windows-debug/Debug/bumpy_port.exe --render-transition MONDE1.VEC trans_         # edge-to-centre screen-change darken, dump trans_NN.bmp (00 = un-darkened)
-& build/windows-debug/Debug/bumpy_port.exe --render-outro DESSFIN.VEC outro.bmp          # post-world-9 ending screen (DESSFIN.VEC) via the shell render path
-& build/windows-debug/Debug/bumpy_port.exe --render-password SCORE.VEC pw.bmp [CODE]     # PASSWORD entry screen; [CODE] shows its OK/ERROR flash
-& build/windows-debug/Debug/bumpy_port.exe --dump-music BUMPY.MID BUMPY.BNK music.wav 20 # offline-render N s of the intro music (OPL2+BNK) to a mono 49715 Hz WAV
-& build/windows-debug/Debug/bumpy_port.exe --dump-sfx 1 sfx.wav                          # render one SFX preset (id 1..0x15) via the speaker sweep engine to a WAV
-& build/windows-debug/Debug/bumpy_port.exe --render3d                                    # launch straight into 3D diorama mode
-& build/windows-debug/Debug/bumpy_port.exe --render-3d 1 MONDE1.VEC 0 out.bmp            # headless diorama dump for one board
-& build/windows-debug/Debug/bumpy_port.exe --present-parity                              # flat-path GL-vs-CPU parity gate (menu/board/map x2/x4, exit 0 = all PASS)
+& build/windows-debug/Debug/OpenBumpy.exe                       # menu window
+& build/windows-debug/Debug/OpenBumpy.exe --render-title out.bmp [0|1|2]  # headless menu dump (optional LEVEL difficulty)
+& build/windows-debug/Debug/OpenBumpy.exe --decode-vec D1.PAV out.bin          # decode any VEC/PAV/DEC/BUM
+& build/windows-debug/Debug/OpenBumpy.exe --render-screen MONDE1.VEC out.bmp   # 320x200 screen-format VEC
+& build/windows-debug/Debug/OpenBumpy.exe --render-pav D1.PAV MONDE1.VEC out.bmp planeseq 320 192 6
+& build/windows-debug/Debug/OpenBumpy.exe --render-board 1 MONDE1.VEC 0 board.bmp        # static board (add 'map' to overlay the world-select screen)
+& build/windows-debug/Debug/OpenBumpy.exe --render-map 1 MONDE1.VEC map.bmp              # world-map screen (MONDE1 + Bumpy avatar on node 1)
+& build/windows-debug/Debug/OpenBumpy.exe --render-play 1 MONDE1.VEC 0 leftfire play     # drive board 0 with an input (none/up/down/left/right/fire/leftfire), dump playNN.bmp + ball/spring log
+& build/windows-debug/Debug/OpenBumpy.exe --render-jump 6 MONDE1.VEC jump_              # fire-to-enter cloud-jump animation on a node, dump jump_NN.bmp
+& build/windows-debug/Debug/OpenBumpy.exe --render-transition MONDE1.VEC trans_         # edge-to-centre screen-change darken, dump trans_NN.bmp (00 = un-darkened)
+& build/windows-debug/Debug/OpenBumpy.exe --render-outro DESSFIN.VEC outro.bmp          # post-world-9 ending screen (DESSFIN.VEC) via the shell render path
+& build/windows-debug/Debug/OpenBumpy.exe --render-password SCORE.VEC pw.bmp [CODE]     # PASSWORD entry screen; [CODE] shows its OK/ERROR flash
+& build/windows-debug/Debug/OpenBumpy.exe --dump-music BUMPY.MID BUMPY.BNK music.wav 20 # offline-render N s of the intro music (OPL2+BNK) to a mono 49715 Hz WAV
+& build/windows-debug/Debug/OpenBumpy.exe --dump-sfx 1 sfx.wav                          # render one SFX preset (id 1..0x15) via the speaker sweep engine to a WAV
+& build/windows-debug/Debug/OpenBumpy.exe --render3d                                    # launch straight into 3D diorama mode
+& build/windows-debug/Debug/OpenBumpy.exe --render-3d 1 MONDE1.VEC 0 out.bmp            # headless diorama dump for one board
+& build/windows-debug/Debug/OpenBumpy.exe --present-parity                              # flat-path GL-vs-CPU parity gate (menu/board/map x2/x4, exit 0 = all PASS)
 ```
 
 In the window: the startup splash now **plays the intro FM music** (looped until a key

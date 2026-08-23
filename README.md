@@ -1,13 +1,14 @@
-# Bumpy3D
+# OpenBumpy
 
 **A vibecoded source port of *Bumpy's Arcade Fantasy* (Loriciel, 1993, DOS)** — a
 native Windows 11 rebuild in C++20 / SDL3 that reads the original game's own
 resource files directly. No re-implemented art, no upscaled or AI-generated
 replacements: every sprite, board, and sound you see comes straight out of the
 original `.EXE` and data files, decoded by a reimplementation of the original
-game's own logic. The name refers to the optional [3D diorama render
-mode](#3d-render-mode) below, not to upscaled assets — the sprites and boards
-are the original 1993 art, unchanged.
+game's own logic. The name follows the usual `Open<Game>` convention for
+clean-room reimplementations of legacy games (OpenRCT2, OpenMW, OpenTTD, …) —
+the sprites and boards you see are the original 1993 art, unchanged, just read
+and rendered by new code.
 
 "Vibecoded" is meant literally, not as a disclaimer: there was no source code,
 no leaked build, no prior disassembly to start from. Everything here — the
@@ -24,7 +25,7 @@ core systems (physics, collision, scoring, sound) are byte/behavior-verified
 against the original piece by piece — but the game is large and intricate,
 and it has **not** been played through start to finish end-to-end. There will
 be bugs, possibly game-breaking ones on some boards. If you hit one, please
-[open an issue](https://github.com/wildpacman/bumpy_port/issues) with the
+[open an issue](https://github.com/wildpacman/OpenBumpy/issues) with the
 world/board and what happened.
 
 There is also a [browser build](#browser-build) from the same sources. It is
@@ -43,8 +44,8 @@ away.
 
 ## Download & play
 
-Grab the latest build from **[Releases](https://github.com/wildpacman/bumpy_port/releases/latest)**
-— it's just the port's own `Bumpy3D.exe` + `SDL3.dll` + shaders, nothing
+Grab the latest build from **[Releases](https://github.com/wildpacman/OpenBumpy/releases/latest)**
+— it's just the port's own `OpenBumpy.exe` + `SDL3.dll` + shaders, nothing
 else. It does **not** include the original game (see [Legal](#legal) below):
 
 1. Download and unzip the release.
@@ -52,8 +53,8 @@ else. It does **not** include the original game (see [Legal](#legal) below):
    (`BUMPY.EXE`, `TITRE.VEC`, `MONDE1..9.VEC`, `D1..9.PAV/DEC/BUM`,
    `BUMSPJEU.BIN`, `DDFNT2.CAR`, `BUMPY.MID`, `BUMPY.BNK`, `SCORE.VEC`,
    `DESSFIN.VEC`, `FLECHE.BIN`, `MASKBUMP.VEC`, `BUMPRESE.VEC`) next to
-   `Bumpy3D.exe`.
-3. Run `Bumpy3D.exe`.
+   `OpenBumpy.exe`.
+3. Run `OpenBumpy.exe`.
 
 ## Features
 
@@ -83,8 +84,8 @@ Requirements:
 cmake --preset windows-debug               # One-time configure (required on fresh clone)
 cmake --build --preset windows-debug      # Debug config, console kept for dev CLI flags
 cmake --build --preset windows-release    # Release config, windowed (no console)
-& build/windows-debug/Debug/bumpy_port.exe
-& build/windows-debug/Release/bumpy_port.exe
+& build/windows-debug/Debug/OpenBumpy.exe
+& build/windows-debug/Release/OpenBumpy.exe
 ctest --preset windows-debug              # run the test suite
 ```
 
@@ -94,9 +95,7 @@ differ in build configuration, so both exes land under
 GLSL sources) is copied next to the exe by the build automatically.
 
 `tools/package_release.ps1` builds a clean redistributable zip (the port's own
-files only) into `dist/` — what the GitHub Releases build is made from (it
-renames the exe to `Bumpy3D.exe` for that package; the build output itself is
-still `bumpy_port.exe`, matching the CMake project name).
+files only) into `dist/` — what the GitHub Releases build is made from.
 
 ## Browser build
 
@@ -114,10 +113,10 @@ cmake --build --preset web-release
 python -m http.server 8000 --directory build/web-release
 ```
 
-Then open `http://localhost:8000/bumpy.html`.
+Then open `http://localhost:8000/openbumpy.html`.
 
 The build bakes the 47 original data files and the five GLSL sources the
-diorama reads at runtime into `bumpy.data` (604,662 bytes total), so
+diorama reads at runtime into `openbumpy.data` (604,662 bytes total), so
 `build/web-release/` is a self-contained static site — no special server
 headers required (the port deliberately avoided `-sPROXY_TO_PTHREAD`, which
 would have needed cross-origin isolation).

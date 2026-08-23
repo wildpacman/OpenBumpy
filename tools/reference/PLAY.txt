@@ -1,19 +1,19 @@
-Bumpy3D -- ready-to-run build
-=============================
+OpenBumpy -- ready-to-run build
+================================
 
 This is the port's own binary. It does NOT include Bumpy's Arcade Fantasy
 itself -- you need your own copy of the original 1993 DOS game.
 
 This is an early, preview-quality build -- the game has not been played
 through start to finish end-to-end, so expect bugs. Report them at
-https://github.com/wildpacman/bumpy_port/issues
+https://github.com/wildpacman/OpenBumpy/issues
 
 Setup:
   1. Get the original game's files (BUMPY.EXE, TITRE.VEC, MONDE1..9.VEC,
      D1..9.PAV/DEC/BUM, BUMSPJEU.BIN, DDFNT2.CAR, BUMPY.MID, BUMPY.BNK,
      SCORE.VEC, DESSFIN.VEC, FLECHE.BIN, MASKBUMP.VEC, BUMPRESE.VEC).
-  2. Drop them in this same folder, next to Bumpy3D.exe.
-  3. Run Bumpy3D.exe.
+  2. Drop them in this same folder, next to OpenBumpy.exe.
+  3. Run OpenBumpy.exe.
 
 Controls:
   Arrows          Move / navigate menus and the world map
@@ -27,4 +27,4 @@ Controls:
 Settings are saved to bumpy_port.cfg next to the exe.
 
 Full source, the reverse-engineering writeup, and the project's story:
-https://github.com/wildpacman/bumpy_port
+https://github.com/wildpacman/OpenBumpy

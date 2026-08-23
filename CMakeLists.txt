@@ -125,10 +125,11 @@ endif()
 
 add_executable(bumpy_port src/app/main.cpp)
 target_link_libraries(bumpy_port PRIVATE bumpy_platform_sdl3)
-# Windows exe icon: the Bumpy hero (src/app/bumpy.ico via src/app/bumpy_port.rc).
+# Windows exe icon: the OpenBumpy splash logo (src/app/bumpy.ico via src/app/bumpy_port.rc).
 # The VS/MSVC generators compile .rc automatically.
 if(WIN32)
   target_sources(bumpy_port PRIVATE src/app/bumpy_port.rc)
+  set_target_properties(bumpy_port PROPERTIES OUTPUT_NAME "OpenBumpy")
 endif()
 # Release is a GUI app: no console window (Windows GUI subsystem). SDL's SDL_main.h
 # emits both main() and WinMain(), so the WINDOWS subsystem links WinMain -> SDL_main
@@ -251,7 +252,7 @@ if(EMSCRIPTEN)
   add_custom_target(bumpy_web_shaders DEPENDS ${BUMPY_WEB_SHADERS_STAGED})
   add_dependencies(bumpy_port bumpy_web_shaders)
 
-  set_target_properties(bumpy_port PROPERTIES OUTPUT_NAME bumpy SUFFIX ".html")
+  set_target_properties(bumpy_port PROPERTIES OUTPUT_NAME openbumpy SUFFIX ".html")
   target_link_options(bumpy_port PRIVATE
     # The run loop still blocks; Asyncify is what turns emscripten_sleep into a real
     # yield so the browser gets its thread back (see src/platform_sdl3/sdl_app.cpp).

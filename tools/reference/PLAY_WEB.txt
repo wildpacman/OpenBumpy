@@ -1,0 +1,29 @@
+OpenBumpy (web build) -- ready-to-run
+======================================
+
+This is a private preview build for review purposes only -- please don't
+re-host or redistribute it further. Unlike the public Windows release, this
+one has the original 1993 game's assets baked in, so it needs no setup.
+
+This is an early, preview-quality build -- the game has not been played
+through start to finish end-to-end, so expect bugs.
+
+Run it:
+  Open openbumpy.html directly in a browser (Chrome recommended -- this is
+  the only browser it's been tested in), or serve the folder with any static
+  file server, e.g.:
+    python -m http.server 8000
+  then open http://localhost:8000/openbumpy.html
+
+Controls:
+  Arrows          Move / navigate menus and the world map
+  Enter / Space   Confirm / fire
+  Escape          Back / quit (context-sensitive, matches the original)
+  Alt+Enter       Toggle fullscreen
+  Alt+3           Toggle the 3D diorama render mode (in-level only)
+  Tab             Settings overlay
+
+Settings persist to the browser's localStorage, not a file.
+
+Full source, the reverse-engineering writeup, and the project's story:
+https://github.com/wildpacman/OpenBumpy

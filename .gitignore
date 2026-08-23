@@ -28,3 +28,7 @@ __pycache__/
 
 # Packaged release staging (built by tools/package_release.ps1)
 /dist/
+
+# Private web handoff staging (built by tools/package_web_release.ps1) --
+# bundles the original game's copyrighted assets, never for git/releases.
+/dist-private/

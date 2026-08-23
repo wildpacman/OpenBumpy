@@ -5,6 +5,16 @@ project(bumpy_port VERSION 0.1.0 LANGUAGES CXX)
 # builds. Off by default: it prints to stdout every 300 waits.
 option(BUMPY_PACE_PROBE "Print frame-pacing measurements" OFF)
 
+# Opt-in single-file web output: embeds the wasm and the preloaded game assets
+# as base64 directly in openbumpy.js instead of separate .wasm/.data files
+# fetched via XHR. That XHR is what needs a webserver -- Chrome (and most
+# browsers) refuse it under file://. A <script src="openbumpy.js"> tag isn't
+# subject to that restriction, so this mode is the one that opens straight
+# from a double-clicked openbumpy.html with no server. Off by default: the
+# regular build's separate .wasm streams and compiles as it downloads and its
+# files cache individually, both better suited to real hosting.
+option(BUMPY_WEB_STANDALONE "Bundle the web build into one file for offline (file://) use" OFF)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -269,8 +279,10 @@ if(EMSCRIPTEN)
     # load_gl33 resolves all 39 post-1.1 entry points through SDL_GL_GetProcAddress,
     # which routes to emscripten_webgl_get_proc_address and is compiled out without this.
     -sGL_ENABLE_GET_PROC_ADDRESS
-    --preload-file ${BUMPY_WEB_STAGE}@/assets
-    --shell-file ${CMAKE_SOURCE_DIR}/src/web/shell.html)
+    $<IF:$<BOOL:${BUMPY_WEB_STANDALONE}>,--embed-file,--preload-file>
+    ${BUMPY_WEB_STAGE}@/assets
+    --shell-file ${CMAKE_SOURCE_DIR}/src/web/shell.html
+    $<$<BOOL:${BUMPY_WEB_STANDALONE}>:-sSINGLE_FILE=1>)
   # The staged assets and shaders are inputs to the link (--preload-file bakes them
   # into bumpy.data), but nothing else tells the link so: a shader-only or asset-only
   # edit restages the file and stops, leaving a stale bumpy.data shipped. That bites

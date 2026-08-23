@@ -9,11 +9,9 @@ This is an early, preview-quality build -- the game has not been played
 through start to finish end-to-end, so expect bugs.
 
 Run it:
-  Open openbumpy.html directly in a browser (Chrome recommended -- this is
-  the only browser it's been tested in), or serve the folder with any static
-  file server, e.g.:
-    python -m http.server 8000
-  then open http://localhost:8000/openbumpy.html
+  Just open openbumpy.html directly (double-click it, or drag it into a
+  browser tab -- Chrome recommended, the only browser this has been tested
+  in). Everything's bundled into that one file, no server needed.
 
 Controls:
   Arrows          Move / navigate menus and the world map

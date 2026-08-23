@@ -18,6 +18,14 @@
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_MAKE_PROGRAM": "C:/Program Files/Microsoft Visual Studio/18/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe"
       }
+    },
+    {
+      "name": "web-standalone",
+      "inherits": "web-release",
+      "binaryDir": "${sourceDir}/build/web-standalone",
+      "cacheVariables": {
+        "BUMPY_WEB_STANDALONE": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -34,6 +42,10 @@
     {
       "name": "web-release",
       "configurePreset": "web-release"
+    },
+    {
+      "name": "web-standalone",
+      "configurePreset": "web-standalone"
     }
   ],
   "testPresets": [
